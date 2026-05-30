@@ -9,6 +9,7 @@ import android.speech.SpeechRecognizer as AndroidSpeechRecognizer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.example.skybuddy.data.repository.SettingsRepository
 
 interface SpeechRecognizer {
     fun isAvailable(): Boolean
@@ -30,7 +31,8 @@ sealed interface SpeechError {
 
 @Singleton
 class AndroidSpeechRecognizerImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val settingsRepository: SettingsRepository
 ) : SpeechRecognizer {
 
     private var recognizer: AndroidSpeechRecognizer? = null
@@ -39,7 +41,7 @@ class AndroidSpeechRecognizerImpl @Inject constructor(
     override fun isAvailable(): Boolean = AndroidSpeechRecognizer.isRecognitionAvailable(context)
 
     override fun start(callback: SpeechCallback, preferOffline: Boolean) {
-        if (!isAvailable()) {
+        if (!isAvailable() || !settingsRepository.isSttEnabled.value) {
             callback.onError(SpeechError.Unavailable)
             return
         }
@@ -74,7 +76,10 @@ class AndroidSpeechRecognizerImpl @Inject constructor(
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, settingsRepository.sttLanguage.value)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 10000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 10000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
             if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         instance.startListening(intent)

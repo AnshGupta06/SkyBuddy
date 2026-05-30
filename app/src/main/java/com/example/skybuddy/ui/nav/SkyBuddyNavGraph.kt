@@ -11,10 +11,10 @@ import com.example.skybuddy.ui.chat.ChatScreen
 import com.example.skybuddy.ui.home.HomeScreen
 import com.example.skybuddy.ui.journey.JourneyPhase
 import com.example.skybuddy.ui.journey.JourneySelectionScreen
-import com.example.skybuddy.ui.journey.HomePhaseScreen
 import com.example.skybuddy.ui.map.IndoorMapScreen
 import com.example.skybuddy.ui.modelload.ModelLoadScreen
 import com.example.skybuddy.ui.onboarding.OnboardingScreen
+import com.example.skybuddy.ui.settings.SettingsScreen
 
 @Composable
 fun SkyBuddyNavGraph(
@@ -22,6 +22,11 @@ fun SkyBuddyNavGraph(
     startDestination: String
 ) {
     NavHost(navController = navController, startDestination = startDestination) {
+        
+        // ── Settings ──
+        composable(Routes.SETTINGS) {
+            SettingsScreen(onBack = { navController.popBackStack() })
+        }
 
         // ── 1. Onboarding ──
         composable(Routes.ONBOARDING) {
@@ -30,6 +35,9 @@ fun SkyBuddyNavGraph(
                     navController.navigate(Routes.MODEL_LOAD) {
                         popUpTo(Routes.ONBOARDING) { inclusive = true }
                     }
+                },
+                onSettingsClicked = {
+                    navController.navigate(Routes.SETTINGS)
                 }
             )
         }
@@ -50,6 +58,9 @@ fun SkyBuddyNavGraph(
             HomeScreen(
                 onFlightTapped = { flightNumber ->
                     navController.navigate(Routes.journeySelect(flightNumber))
+                },
+                onSettingsClicked = {
+                    navController.navigate(Routes.SETTINGS)
                 }
             )
         }
@@ -65,9 +76,7 @@ fun SkyBuddyNavGraph(
                 onPhaseSelected = { phase ->
                     when (phase) {
                         JourneyPhase.HOME -> {
-                            // Navigate to HomePhaseScreen — need departureEpoch
-                            // We'll pass 0 as default; the screen will pull from DB if needed
-                            navController.navigate(Routes.homePhase(flightNumber, 0L))
+                            navController.navigate(Routes.chat(flightNumber))
                         }
                         else -> {
                             // Airport phases → Indoor Map
@@ -79,29 +88,6 @@ fun SkyBuddyNavGraph(
             )
         }
 
-        // ── 5. Home Phase (preflight checklist) ──
-        composable(
-            route = Routes.HOME_PHASE_PATTERN,
-            arguments = listOf(
-                navArgument("flightNumber") { type = NavType.StringType },
-                navArgument("departureEpoch") { type = NavType.LongType }
-            )
-        ) { entry ->
-            val flightNumber = entry.arguments?.getString("flightNumber") ?: ""
-            val departureEpoch = entry.arguments?.getLong("departureEpoch") ?: 0L
-            HomePhaseScreen(
-                flightNumber = flightNumber,
-                departureTimeEpoch = departureEpoch,
-                onChatClicked = {
-                    navController.navigate(Routes.chat(flightNumber))
-                },
-                onAtAirportClicked = {
-                    // Go back to journey selection to pick an airport phase
-                    navController.popBackStack()
-                },
-                onBack = { navController.popBackStack() }
-            )
-        }
 
         // ── 6. Indoor Map (airport phases) ──
         composable(
@@ -110,6 +96,7 @@ fun SkyBuddyNavGraph(
         ) { entry ->
             val flightNumber = entry.arguments?.getString("flightNumber") ?: ""
             IndoorMapScreen(
+                flightNumber = flightNumber,
                 onChatClicked = {
                     navController.navigate(Routes.chat(flightNumber))
                 },
@@ -127,7 +114,17 @@ fun SkyBuddyNavGraph(
             val flightNumber = entry.arguments?.getString("flightNumber") ?: ""
             ChatScreen(
                 flightNumber = flightNumber,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onSettingsClicked = { navController.navigate(Routes.SETTINGS) },
+                onPhaseAdvanced = { nextPhase ->
+                    if (nextPhase == JourneyPhase.AIRPORT_ENTRANCE) {
+                        navController.navigate(Routes.indoorMap(flightNumber)) {
+                            popUpTo(Routes.chat(flightNumber)) { inclusive = true }
+                        }
+                    } else {
+                        navController.popBackStack()
+                    }
+                }
             )
         }
     }

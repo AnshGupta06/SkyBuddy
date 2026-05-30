@@ -3,6 +3,7 @@ package com.example.skybuddy.location
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
+import android.content.Intent
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -10,6 +11,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.util.Log
 import com.example.skybuddy.domain.usecase.EvaluateAmbientBeaconUseCase
+import com.example.skybuddy.shared.data.BeaconCodec
 import com.example.skybuddy.shared.location.BlockedRegionManager
 import com.example.skybuddy.shared.location.IndoorLocationManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -30,7 +32,8 @@ class DynamicBeaconReceiver @Inject constructor(
     private val indoorLocationManager: IndoorLocationManager,
     private val blockedRegionManager: BlockedRegionManager
 ) {
-    private var isScanning = false
+    var isScanning = false
+        private set
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private val processedBeacons: MutableSet<String> =
         Collections.synchronizedSet(mutableSetOf())
@@ -43,6 +46,19 @@ class DynamicBeaconReceiver @Inject constructor(
     private val _beaconEvents = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val beaconEvents: SharedFlow<String> = _beaconEvents.asSharedFlow()
 
+    /** Called by the watchdog service to inject recovery events into the beacon pipeline. */
+    fun emitEvent(msg: String) {
+        _beaconEvents.tryEmit(msg)
+    }
+
+    /** Beacon offer events: Pair(locationName, offerText) — consumed by Dynamic Island. */
+    private val _beaconOffers = MutableSharedFlow<Pair<String, String>>(extraBufferCapacity = 8)
+    val beaconOffers: SharedFlow<Pair<String, String>> = _beaconOffers.asSharedFlow()
+
+    /** LLM-generated beacon insight text — surfaces in the Dynamic Island expanded view. */
+    private val _beaconInsights = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val beaconInsights: SharedFlow<String> = _beaconInsights.asSharedFlow()
+
 
     private val scanCallback = object : ScanCallback() {
         @SuppressLint("MissingPermission")
@@ -51,18 +67,23 @@ class DynamicBeaconReceiver @Inject constructor(
                 result?.scanRecord?.let { scanRecord ->
                     // Use the advertised device name from the scan record only.
                     // BluetoothDevice.getName() requires BLUETOOTH_CONNECT, which we do not hold.
-                    val deviceName = scanRecord.deviceName
-                    if (deviceName.isNullOrEmpty()) return
+                    // 1. Collect all potential data sources
+                    val dataParts = listOfNotNull(
+                        scanRecord.deviceName,
+                        scanRecord.getManufacturerSpecificData(0xFFFF)?.let { String(it, Charsets.UTF_8) },
+                        scanRecord.getManufacturerSpecificData(0xFFFE)?.let { String(it, Charsets.UTF_8) },
+                        scanRecord.getManufacturerSpecificData(0xFFFD)?.let { String(it, Charsets.UTF_8) }
+                    )
 
-                    // ─── Handle blocked-region beacons from security ───
-                    if (deviceName.startsWith("SBBLK:")) {
-                        val nodesCsv = deviceName.removePrefix("SBBLK:")
-                        val nodeIds = nodesCsv.split(",")
-                            .map { it.trim() }
-                            .filter { it.isNotEmpty() }
-                            .toSet()
-                        // Only update if the blocked set actually changed —
-                        // avoids redundant StateFlow emissions and pathfinding recalcs.
+                    if (dataParts.isEmpty()) return
+
+                    // 2. Search across all parts for our special prefixes
+                    
+                    // ─── Handle blocked-region beacons ───
+                    dataParts.find { it.contains("SBBLK:") }?.let { source ->
+                        val index = source.indexOf("SBBLK:")
+                        val payload = source.substring(index)
+                        val nodeIds = BeaconCodec.decodeBlocked(payload)
                         if (nodeIds != lastBlockedSet) {
                             lastBlockedSet = nodeIds
                             Log.d(TAG, "Blocked regions updated: $nodeIds")
@@ -71,15 +92,35 @@ class DynamicBeaconReceiver @Inject constructor(
                         return
                     }
 
-                    // ─── Handle SOS beacons (just log, main app doesn't act on its own SOS) ───
-                    if (deviceName.startsWith("SBSOS:")) {
-                        Log.d(TAG, "SOS beacon seen: $deviceName")
+                    // ─── Handle SOS stop signal from security ───
+                    dataParts.find { it.contains("SBSOS_STOP:") }?.let { source ->
+                        val index = source.indexOf("SBSOS_STOP:")
+                        val payload = source.substring(index).removePrefix("SBSOS_STOP:")
+                        if (payload.startsWith("[") && payload.contains("]")) {
+                            val tag = payload.substring(1, payload.indexOf("]")).trim()
+                            val myId = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "0000"
+                            val myTag = myId.takeLast(4).uppercase()
+                            
+                            if (tag == myTag) {
+                                Log.d(TAG, "MATCH! Stopping SOS alarm service for tag: $tag")
+                                context.stopService(Intent(context, SosAlarmService::class.java))
+                            } else {
+                                Log.d(TAG, "Stop signal received for different tag: $tag (mine is $myTag)")
+                            }
+                        }
                         return
                     }
 
-                    // ─── Handle shop/offer beacons (existing logic) ───
-                    if (deviceName.startsWith("SB:")) {
-                        val payload = deviceName.removePrefix("SB:")
+                    // ─── Handle SOS beacons (just log) ───
+                    dataParts.find { it.contains("SBSOS:") }?.let { source ->
+                        Log.d(TAG, "SOS beacon seen: $source")
+                        return
+                    }
+
+                    // ─── Handle shop/offer beacons ───
+                    dataParts.find { it.contains("SB:") }?.let { source ->
+                        val index = source.indexOf("SB:")
+                        val payload = source.substring(index).removePrefix("SB:")
                         val parts = payload.split("|")
                         if (parts.size >= 2) {
                             val locationName = parts[0].trim()
@@ -89,15 +130,17 @@ class DynamicBeaconReceiver @Inject constructor(
                             if (processedBeacons.add(uniqueKey)) {
                                 Log.d(TAG, "Intercepted: $locationName - $offer")
 
-                                // Simulate Absolute Anchoring: Snap PDR coordinates based on known beacon name
                                 when (locationName) {
                                     "Costa" -> indoorLocationManager.calibratePosition(700f, 700f)
                                     "DutyFree" -> indoorLocationManager.calibratePosition(500f, 600f)
                                 }
 
-                                // Trigger JIT AI Generation
+                                // Surface the offer in the Dynamic Island
+                                _beaconOffers.tryEmit(locationName to offer)
+
                                 coroutineScope.launch {
-                                    evaluateAmbientBeacon(offer, locationName)
+                                    val llmInsight = evaluateAmbientBeacon(offer, locationName)
+                                    _beaconInsights.tryEmit(llmInsight)
                                 }
                             }
                         }

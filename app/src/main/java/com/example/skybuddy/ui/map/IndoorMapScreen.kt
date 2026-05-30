@@ -1,6 +1,7 @@
 package com.example.skybuddy.ui.map
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,12 +43,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -59,6 +63,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.LaunchedEffect
@@ -66,9 +71,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.geometry.CornerRadius
@@ -94,8 +101,11 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.graphics.RectF
+import com.example.skybuddy.core.permission.rememberMultiplePermissionsController
 import com.example.skybuddy.data.repository.LayoutNode
 import com.example.skybuddy.location.LocationTrackerService
+import com.example.skybuddy.ui.chat.ChatViewModel
+import kotlinx.coroutines.launch
 import com.example.skybuddy.ui.journey.GlobalStateDropdown
 import com.example.skybuddy.ui.journey.JourneyViewModel
 import com.example.skybuddy.ui.theme.BackgroundGray
@@ -628,21 +638,54 @@ private fun DrawScope.drawGlyphPin(c: Offset, a: Color) {
     drawPath(p, a, style = Fill)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IndoorMapScreen(
+    flightNumber: String,
     onChatClicked: () -> Unit,
     onHelpClicked: () -> Unit,
     viewModel: IndoorMapViewModel = hiltViewModel(),
-    journeyViewModel: JourneyViewModel = hiltViewModel()
+    journeyViewModel: JourneyViewModel = hiltViewModel(),
+    chatViewModel: ChatViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val chatState by chatViewModel.state.collectAsState()
+    
+    LaunchedEffect(uiState.estimatedTimeMinutes) {
+        chatViewModel.currentEstimatedTimeMinutes = uiState.estimatedTimeMinutes
+    }
 
     var scale by remember { mutableStateOf(OverviewMapScale) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var showCalibration by remember { mutableStateOf(false) }
     var showSOSSheet by remember { mutableStateOf(false) }
     var isVisualCalibrationMode by remember { mutableStateOf(false) }
+    var pendingSOSType by remember { mutableStateOf<String?>(null) }
+    var pendingSOSTypeForDialog by remember { mutableStateOf<SOSType?>(null) }
     val context = LocalContext.current
+
+    val permissionsController = rememberMultiplePermissionsController { results ->
+        val advertiseGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            results[Manifest.permission.BLUETOOTH_ADVERTISE] ?: (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED)
+        } else true
+        
+        val connectGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            results[Manifest.permission.BLUETOOTH_CONNECT] ?: (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED)
+        } else true
+        
+        if (advertiseGranted && connectGranted) {
+            pendingSOSType?.let { 
+                viewModel.sendSOS(it) 
+                val intent = Intent(context, com.example.skybuddy.location.SosAlarmService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            }
+        }
+        pendingSOSType = null
+    }
 
     // Pulsing animation for blue dot
     val pulseTransition = rememberInfiniteTransition(label = "pulse")
@@ -665,15 +708,56 @@ fun IndoorMapScreen(
         label = "pulseA"
     )
 
-    LaunchedEffect(Unit) {
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (granted) {
+    // ── Request beacon + notification permissions before starting service ──
+    val beaconPermController = rememberMultiplePermissionsController { results ->
+        // Once permissions are resolved, start the foreground service
+        val locationOk = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (locationOk) {
             val intent = Intent(context, LocationTrackerService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
                 context.startService(intent)
             }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val needed = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.BLUETOOTH_SCAN)
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        if (needed.isNotEmpty()) {
+            beaconPermController.request(needed.toTypedArray())
+        } else {
+            // All permissions already granted — start service directly
+            val intent = Intent(context, LocationTrackerService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        }
+
+        // Request battery optimization exemption so the beacon service stays alive
+        val pm = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+            try {
+                val exemptIntent = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = android.net.Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(exemptIntent)
+            } catch (_: Exception) { /* Some devices don't support this intent */ }
         }
     }
 
@@ -700,7 +784,7 @@ fun IndoorMapScreen(
         // Beacon status Snackbar
         SnackbarHost(
             hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp)
         )
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val canvasWidth = constraints.maxWidth.toFloat()
@@ -981,11 +1065,6 @@ fun IndoorMapScreen(
                 )
                 if (!isVisualCalibrationMode) {
                     Spacer(Modifier.height(8.dp))
-                    NavigationBanner(
-                        stepText = uiState.navigationStep,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(8.dp))
                     MapSearchBar(
                         query = uiState.searchQuery,
                         results = uiState.searchResults,
@@ -1071,7 +1150,7 @@ fun IndoorMapScreen(
                     containerColor = ErrorRed,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(16.dp)
+                        .padding(bottom = 155.dp, start = 16.dp)
                         .size(60.dp)
                 ) {
                     Text("SOS", style = MaterialTheme.typography.labelLarge,
@@ -1083,7 +1162,7 @@ fun IndoorMapScreen(
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = 90.dp)
+                            .padding(bottom = 150.dp)
                             .background(color = ErrorRed, shape = RoundedCornerShape(12.dp))
                             .padding(horizontal = 20.dp, vertical = 10.dp)
                     ) {
@@ -1094,19 +1173,8 @@ fun IndoorMapScreen(
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(16.dp)
+                        .padding(bottom = 155.dp, end = 16.dp)
                 ) {
-                    StyledFab(
-                        onClick = onChatClicked,
-                        icon = { Icon(Icons.AutoMirrored.Filled.Chat, "Chat", tint = SurfaceWhite, modifier = Modifier.size(22.dp)) }
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    StyledFab(
-                        onClick = onHelpClicked,
-                        icon = { Icon(Icons.AutoMirrored.Filled.Help, "Help", tint = OnSurfaceDark, modifier = Modifier.size(22.dp)) },
-                        isSecondary = true
-                    )
-                    Spacer(Modifier.height(10.dp))
                     StyledFab(
                         onClick = {
                             offset = Offset.Zero
@@ -1137,13 +1205,69 @@ fun IndoorMapScreen(
                 exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(16.dp)
+                    .padding(bottom = 155.dp)
+                    .padding(horizontal = 16.dp)
             ) {
                 uiState.selectedNode?.let { node ->
                     PoiInfoCard(
                         node = node,
                         onDismiss = { viewModel.clearSelection() },
                         onNavigate = { viewModel.navigateToNode(node) }
+                    )
+                }
+            }
+        }
+        
+        // ─── Dynamic Island + Chat Input (bottom stack) ───
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Dynamic Island — always shows at least one line
+            DynamicIsland(
+                state = uiState.dynamicIsland,
+                onTap = { viewModel.toggleIslandExpanded() },
+                onDismiss = { viewModel.collapseIsland() }
+            )
+
+            // Chat input bar
+            Card(
+                shape = RoundedCornerShape(32.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                border = BorderStroke(1.dp, CardBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onChatClicked() }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = "Chat",
+                        tint = PrimaryPurple,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Ask SkyBuddy...",
+                        color = OnSurfaceDim,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Icon(
+                        Icons.Filled.Mic,
+                        contentDescription = "Voice",
+                        tint = OnSurfaceDim,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -1170,10 +1294,52 @@ fun IndoorMapScreen(
     if (showSOSSheet) {
         SOSBottomSheet(
             onSOSSelected = { sosType ->
-                viewModel.sendSOS(sosType.id)
                 showSOSSheet = false
+                pendingSOSTypeForDialog = sosType
             },
             onDismiss = { showSOSSheet = false }
+        )
+    }
+
+    if (pendingSOSTypeForDialog != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingSOSTypeForDialog = null },
+            title = { androidx.compose.material3.Text("Send Emergency SOS?") },
+            text = { androidx.compose.material3.Text("This will alert airport security and start an alarm on your device. False reports are tracked and can be actioned.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val sosType = pendingSOSTypeForDialog!!
+                    pendingSOSTypeForDialog = null
+                    
+                    val needsAdvertise = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && 
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED
+                    val needsConnect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && 
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+                    
+                    if (needsAdvertise || needsConnect) {
+                        pendingSOSType = sosType.id
+                        val reqs = mutableListOf<String>()
+                        if (needsAdvertise) reqs.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+                        if (needsConnect) reqs.add(Manifest.permission.BLUETOOTH_CONNECT)
+                        permissionsController.request(reqs.toTypedArray())
+                    } else {
+                        viewModel.sendSOS(sosType.id)
+                        val intent = Intent(context, com.example.skybuddy.location.SosAlarmService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(intent)
+                        } else {
+                            context.startService(intent)
+                        }
+                    }
+                }) {
+                    androidx.compose.material3.Text("Confirm & Send SOS")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingSOSTypeForDialog = null }) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
         )
     }
 }

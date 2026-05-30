@@ -10,6 +10,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.example.skybuddy.data.repository.SettingsRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 
 sealed interface TtsStatus {
     data object Initializing : TtsStatus
@@ -28,8 +33,11 @@ interface TextToSpeechService {
 
 @Singleton
 class AndroidTextToSpeech @Inject constructor(
-    @ApplicationContext context: Context
+    @ApplicationContext context: Context,
+    private val settingsRepository: SettingsRepository
 ) : TextToSpeechService, AndroidTextToSpeech.OnInitListener {
+
+    private val serviceScope = CoroutineScope(Dispatchers.Main)
 
     private val _status = MutableStateFlow<TtsStatus>(TtsStatus.Initializing)
     override val status: StateFlow<TtsStatus> = _status.asStateFlow()
@@ -39,6 +47,24 @@ class AndroidTextToSpeech @Inject constructor(
 
     init {
         tts = AndroidTextToSpeech(context, this)
+        serviceScope.launch {
+            settingsRepository.ttsLanguage.collectLatest { lang ->
+                if (initialized) {
+                    val locale = Locale.forLanguageTag(lang)
+                    tts?.language = locale
+                }
+            }
+        }
+        serviceScope.launch {
+            settingsRepository.speechRate.collectLatest { rate ->
+                if (initialized) tts?.setSpeechRate(rate)
+            }
+        }
+        serviceScope.launch {
+            settingsRepository.pitch.collectLatest { pitch ->
+                if (initialized) tts?.setPitch(pitch)
+            }
+        }
     }
 
     override fun onInit(status: Int) {
@@ -74,12 +100,20 @@ class AndroidTextToSpeech @Inject constructor(
     }
 
     override fun speak(text: String) {
-        if (!initialized) return
+        if (!initialized || !settingsRepository.isTtsEnabled.value) return
+        val locale = Locale.forLanguageTag(settingsRepository.ttsLanguage.value)
+        tts?.language = locale
+        tts?.setSpeechRate(settingsRepository.speechRate.value)
+        tts?.setPitch(settingsRepository.pitch.value)
         tts?.speak(text, AndroidTextToSpeech.QUEUE_FLUSH, null, null)
     }
 
     override fun speakQueued(text: String) {
-        if (!initialized) return
+        if (!initialized || !settingsRepository.isTtsEnabled.value) return
+        val locale = Locale.forLanguageTag(settingsRepository.ttsLanguage.value)
+        tts?.language = locale
+        tts?.setSpeechRate(settingsRepository.speechRate.value)
+        tts?.setPitch(settingsRepository.pitch.value)
         tts?.speak(text, AndroidTextToSpeech.QUEUE_ADD, null, null)
     }
 

@@ -37,6 +37,7 @@ import com.example.skybuddy.ui.theme.PrimaryPurple
 @Composable
 fun NavigationBanner(
     stepText: String,
+    estimatedTimeMinutes: Int? = null,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -79,7 +80,7 @@ fun NavigationBanner(
                         .size(22.dp)
                 )
                 Text(
-                    text = stepText,
+                    text = if (estimatedTimeMinutes != null) "$stepText (Est. $estimatedTimeMinutes min walk)" else stepText,
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.SemiBold
                     ),

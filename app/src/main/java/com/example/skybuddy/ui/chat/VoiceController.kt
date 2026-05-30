@@ -22,27 +22,56 @@ class VoiceController @Inject constructor(
 ) {
     private val _events = MutableStateFlow<VoiceEvent?>(null)
     val events: StateFlow<VoiceEvent?> = _events.asStateFlow()
+    
+    private val _isListening = MutableStateFlow(false)
+    val isListening: StateFlow<Boolean> = _isListening.asStateFlow()
 
     val ttsStatus get() = tts.status
 
+    private val _isMuted = MutableStateFlow(false)
+    val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
+
+    fun toggleMute() {
+        val newMuted = !_isMuted.value
+        _isMuted.value = newMuted
+        if (newMuted) tts.stop() // Stop any current speech immediately
+    }
+
     fun startListening() {
+        _isListening.value = true
         recognizer.start(object : SpeechCallback {
-            override fun onResult(text: String) { _events.value = VoiceEvent.Heard(text) }
-            override fun onError(reason: SpeechError) { _events.value = VoiceEvent.Error(reason) }
+            override fun onResult(text: String) {
+                _isListening.value = false
+                _events.value = VoiceEvent.Heard(text)
+            }
+            override fun onError(reason: SpeechError) {
+                _isListening.value = false
+                _events.value = VoiceEvent.Error(reason)
+            }
         })
     }
 
-    fun stopListening() = recognizer.stop()
+    fun stopListening() {
+        recognizer.stop()
+        _isListening.value = false
+    }
 
-    fun speak(text: String) = tts.speak(text)
+    fun speak(text: String) {
+        if (!_isMuted.value) tts.speak(text)
+    }
 
     /** Queue text after the current utterance (for line-by-line streaming TTS). */
-    fun speakQueued(text: String) = tts.speakQueued(text)
+    fun speakQueued(text: String) {
+        if (!_isMuted.value) tts.speakQueued(text)
+    }
 
     /** Stop any current and queued speech. */
     fun stopSpeaking() = tts.stop()
 
-    fun consume() { _events.value = null }
+    fun consume() {
+        _events.value = null
+        _isListening.value = false
+    }
 
     fun shutdown() {
         recognizer.destroy()

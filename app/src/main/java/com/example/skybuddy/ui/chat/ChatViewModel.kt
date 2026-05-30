@@ -11,7 +11,10 @@ import com.example.skybuddy.data.db.ReceiptEntity
 import com.example.skybuddy.data.db.TimelineEventDao
 import com.example.skybuddy.data.db.TimelineEventEntity
 import com.example.skybuddy.data.repository.FlightRepository
+import com.example.skybuddy.data.repository.ChecklistRepository
+import com.example.skybuddy.data.repository.ChecklistItemEntity
 import com.example.skybuddy.domain.state.JourneyManager
+import com.example.skybuddy.ui.journey.JourneyPhase
 import com.example.skybuddy.domain.usecase.ChatTurnUseCase
 import com.example.skybuddy.domain.usecase.DescribeLuggageUseCase
 import com.example.skybuddy.domain.usecase.RecognizeReceiptUseCase
@@ -31,11 +34,11 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
+import com.example.skybuddy.data.repository.SettingsRepository
 
 data class ChatUiState(
     val input: String = "",
     val isThinking: Boolean = false,
-    val isIntercomMode: Boolean = false,
     val toolStatusLabel: String? = null,
     /** Accumulated tokens shown during streaming. */
     val streamingResponse: String = "",
@@ -53,8 +56,12 @@ class ChatViewModel @Inject constructor(
     private val describeLuggage: DescribeLuggageUseCase,
     private val journeyManager: JourneyManager,
     private val indoorLocationManager: IndoorLocationManager,
+    private val settingsRepository: SettingsRepository,
+    private val checklistRepository: ChecklistRepository,
     val voiceController: VoiceController
 ) : ViewModel() {
+
+    val destinationNodeId = indoorLocationManager.destinationNodeId
 
     private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 
@@ -67,6 +74,11 @@ class ChatViewModel @Inject constructor(
     private var pinnedFlightNumber: String? = null
     private val _pinnedFlight = MutableStateFlow<FlightEntity?>(null)
     val pinnedFlight: StateFlow<FlightEntity?> = _pinnedFlight.asStateFlow()
+
+    val currentPhase: StateFlow<JourneyPhase> = journeyManager.currentPhase
+
+    private val _checklistItems = MutableStateFlow<List<ChecklistItemEntity>>(emptyList())
+    val checklistItems: StateFlow<List<ChecklistItemEntity>> = _checklistItems.asStateFlow()
 
     // TTS tracking
     private var ttsSpokenUpTo = 0
@@ -81,20 +93,70 @@ class ChatViewModel @Inject constructor(
                 _pinnedFlight.value = flight
             }
         }
+        viewModelScope.launch {
+            checklistRepository.observeItems(flightNumber).collect { items ->
+                _checklistItems.value = items
+            }
+        }
     }
 
+    fun clearChat() {
+        viewModelScope.launch {
+            timelineEventDao.clearAll()
+            _state.update { it.copy(streamingResponse = "", isThinking = false, isStreamingResponse = false, toolStatusLabel = null) }
+            voiceController.stopSpeaking()
+        }
+    }
+
+    var currentEstimatedTimeMinutes: Int? = null
+
     fun onInputChanged(value: String) = _state.update { it.copy(input = value) }
-    fun toggleIntercom() = _state.update { it.copy(isIntercomMode = !it.isIntercomMode) }
+
+    fun toggleChecklistItem(id: String, completed: Boolean) {
+        val flight = pinnedFlightNumber ?: return
+        checklistRepository.setCompleted(flight, id, completed)
+    }
+
+    fun ensureChecklistVisible() {
+        if (currentPhase.value != JourneyPhase.HOME) return
+        if (checklistItems.value.isEmpty()) return
+        
+        viewModelScope.launch(Dispatchers.IO) {
+            val recent = timelineEventDao.getRecentEvents(1)
+            if (recent.isEmpty() || recent.first().uiComponentType != "CHECKLIST_CARD") {
+                timelineEventDao.insert(
+                    TimelineEventEntity(
+                        timestamp = System.currentTimeMillis(),
+                        role = "SYSTEM_SPATIAL",
+                        uiComponentType = "CHECKLIST_CARD",
+                        content = ""
+                    )
+                )
+            }
+        }
+    }
+
+    fun advancePhase(newPhase: JourneyPhase) {
+        journeyManager.setPhase(newPhase)
+    }
 
     private fun getSpatialContext(): String {
         val x = indoorLocationManager.currentX.value
         val y = indoorLocationManager.currentY.value
         val phase = journeyManager.currentPhase.value.displayName
-        return "[SYSTEM CONTEXT: User is at X:$x, Y:$y. State is $phase.]"
+        val outLang = settingsRepository.ttsLanguage.value
+        val inLang = settingsRepository.sttLanguage.value
+        val estTimeStr = currentEstimatedTimeMinutes?.let { " Estimated time to destination: $it minutes." } ?: ""
+        
+        return "[SYSTEM CONTEXT: User is at X:$x, Y:$y. State is $phase.$estTimeStr " +
+               "The user's preferred input language is $inLang and preferred output language is $outLang. " +
+               "ALWAYS respond in $outLang. If the user speaks in $inLang, translate your knowledge to $outLang.]"
     }
 
+    private fun shouldSpeak(): Boolean = settingsRepository.isTtsEnabled.value
+
     private fun speakNewLinesIfNeeded(text: String) {
-        if (!_state.value.isIntercomMode) return
+        if (!shouldSpeak()) return
         while (true) {
             val nl = text.indexOf('\n', ttsSpokenUpTo)
             if (nl == -1) break
@@ -108,7 +170,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun speakRemainder(text: String) {
-        if (!_state.value.isIntercomMode) return
+        if (!shouldSpeak()) return
         if (ttsSpokenUpTo < text.length) {
             val rem = text.substring(ttsSpokenUpTo).trim()
             if (rem.isNotEmpty()) {
@@ -131,7 +193,7 @@ class ChatViewModel @Inject constructor(
             ))
 
             ttsSpokenUpTo = 0
-            streamingTtsHandledTurn = _state.value.isIntercomMode
+            streamingTtsHandledTurn = settingsRepository.isTtsEnabled.value
             _state.update {
                 it.copy(
                     input = "",
@@ -160,7 +222,7 @@ class ChatViewModel @Inject constructor(
             }
 
             speakRemainder(_state.value.streamingResponse)
-            applyTurn(result.response, result.flight, result.luggage, result.receipts)
+            applyTurn(result.response, result.flight, result.luggage, result.receipts, result.checklistModified)
         }
         return prompt
     }
@@ -199,7 +261,7 @@ class ChatViewModel @Inject constructor(
                 _state.update { it.copy(toolStatusLabel = toolLabel) }
             }
 
-            applyTurn(result.response, result.flight, result.luggage, result.receipts)
+            applyTurn(result.response, result.flight, result.luggage, result.receipts, result.checklistModified)
         }
     }
 
@@ -252,7 +314,8 @@ class ChatViewModel @Inject constructor(
         response: String,
         flight: FlightEntity?,
         luggage: LuggageEntity?,
-        receipts: List<ReceiptEntity>?
+        receipts: List<ReceiptEntity>?,
+        checklistModified: Boolean
     ) {
         timelineEventDao.insert(TimelineEventEntity(
             timestamp = System.currentTimeMillis(),
@@ -287,6 +350,15 @@ class ChatViewModel @Inject constructor(
                 role = "GEMMA",
                 uiComponentType = "RECEIPT_CARD",
                 content = adapter.toJson(receipts)
+            ))
+        }
+
+        if (checklistModified) {
+            timelineEventDao.insert(TimelineEventEntity(
+                timestamp = System.currentTimeMillis() + 4,
+                role = "GEMMA",
+                uiComponentType = "CHECKLIST_CARD",
+                content = "" // Checklist items are loaded from ViewModel state
             ))
         }
 

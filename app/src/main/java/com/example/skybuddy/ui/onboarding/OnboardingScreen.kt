@@ -27,8 +27,12 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -62,6 +66,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun OnboardingScreen(
     onModelReady: () -> Unit,
+    onSettingsClicked: () -> Unit,
     viewModel: OnboardingViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -82,6 +87,7 @@ fun OnboardingScreen(
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN)
         permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
+        permissionsToRequest.add(Manifest.permission.BLUETOOTH_ADVERTISE)
     }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -107,6 +113,20 @@ fun OnboardingScreen(
             .background(BackgroundGray),
         contentAlignment = Alignment.Center
     ) {
+        // Settings Button at the top right
+        IconButton(
+            onClick = onSettingsClicked,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = OnSurfaceDim
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()

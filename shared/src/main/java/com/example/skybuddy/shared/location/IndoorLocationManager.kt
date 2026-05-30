@@ -21,6 +21,13 @@ class IndoorLocationManager @Inject constructor() {
     private val _currentHeading = MutableStateFlow(0f) // in radians
     val currentHeading: StateFlow<Float> = _currentHeading.asStateFlow()
 
+    private val _destinationNodeId = MutableStateFlow<String?>(null)
+    val destinationNodeId: StateFlow<String?> = _destinationNodeId.asStateFlow()
+
+    fun setDestinationNodeId(nodeId: String?) {
+        _destinationNodeId.value = nodeId
+    }
+
     // Fixed stride length in map units
     private val strideLength = 3f
 

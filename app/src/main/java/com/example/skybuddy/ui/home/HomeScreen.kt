@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -68,6 +69,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import android.os.Build
 import com.example.skybuddy.core.permission.rememberMultiplePermissionsController
 import com.example.skybuddy.core.permission.rememberPermissionController
+import java.io.File
 import com.example.skybuddy.ui.flight.ExpandableFlightCard
 import com.example.skybuddy.ui.theme.BackgroundGray
 import com.example.skybuddy.ui.theme.GlassCard
@@ -82,6 +84,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(
     onFlightTapped: (String) -> Unit,
+    onSettingsClicked: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val ui by viewModel.ui.collectAsState()
@@ -108,6 +111,7 @@ fun HomeScreen(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN)
             permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT)
+            permissionsToRequest.add(Manifest.permission.BLUETOOTH_ADVERTISE)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -135,14 +139,17 @@ fun HomeScreen(
         }
     )
 
+    var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview(),
-        onResult = { bitmap ->
-            bitmap?.let {
-                coroutineScope.launch {
-                    val result = viewModel.ingestFlightBitmap(it)
-                    if (result.isFailure) {
-                        Toast.makeText(context, result.exceptionOrNull()?.message ?: "Failed", Toast.LENGTH_LONG).show()
+        contract = ActivityResultContracts.TakePicture(),
+        onResult = { success ->
+            if (success) {
+                tempPhotoUri?.let { uri ->
+                    coroutineScope.launch {
+                        val result = viewModel.ingestFlight(context, uri)
+                        if (result.isFailure) {
+                            Toast.makeText(context, result.exceptionOrNull()?.message ?: "Failed", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
@@ -150,8 +157,18 @@ fun HomeScreen(
     )
 
     val cameraPermission = rememberPermissionController { granted ->
-        if (granted) cameraLauncher.launch(null)
-        else Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
+        if (granted) {
+            val file = File(context.cacheDir, "scan_${System.currentTimeMillis()}.jpg")
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            tempPhotoUri = uri
+            cameraLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // ── Staggered entrance ──
@@ -177,13 +194,24 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "My Flights",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = OnSurfaceDark
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "My Flights",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = OnSurfaceDark
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(onClick = onSettingsClicked, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = OnSurfaceDim,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -272,8 +300,18 @@ fun HomeScreen(
                                         val granted = ContextCompat.checkSelfPermission(
                                             context, Manifest.permission.CAMERA
                                         ) == PackageManager.PERMISSION_GRANTED
-                                        if (granted) cameraLauncher.launch(null)
-                                        else cameraPermission.request(Manifest.permission.CAMERA)
+                                        if (granted) {
+                                            val file = File(context.cacheDir, "scan_${System.currentTimeMillis()}.jpg")
+                                            val uri = androidx.core.content.FileProvider.getUriForFile(
+                                                context,
+                                                "${context.packageName}.fileprovider",
+                                                file
+                                            )
+                                            tempPhotoUri = uri
+                                            cameraLauncher.launch(uri)
+                                        } else {
+                                            cameraPermission.request(Manifest.permission.CAMERA)
+                                        }
                                     },
                                 contentAlignment = Alignment.Center
                             ) {

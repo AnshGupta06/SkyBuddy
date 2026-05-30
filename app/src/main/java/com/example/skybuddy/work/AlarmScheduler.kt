@@ -15,32 +15,42 @@ class AlarmScheduler @Inject constructor(
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     fun schedulePreflightAlarm(flightNumber: String, departureTimeEpoch: Long) {
-        val intent = Intent(context, FlightAlarmReceiver::class.java).apply {
-            putExtra(FlightAlarmReceiver.EXTRA_FLIGHT_NUMBER, flightNumber)
-        }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            flightNumber.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val milestones = listOf(
+            6 * 60 to ("T-Minus 6 Hours!" to "Time to pack and review your SkyBuddy checklist."),
+            3 * 60 to ("Check-in Open" to "Baggage drop is open. Head to the check-in counters."),
+            2 * 60 to ("Security Check" to "Time to proceed through security check."),
+            1 * 60 to ("Boarding Soon" to "Boarding will start soon. Head towards your gate."),
+            45 to ("Hurry Up!" to "Boarding has started! Please proceed to the gate immediately.")
         )
 
-        // 6 hours before departure
-        val alarmTime = departureTimeEpoch - (6 * 60 * 60 * 1000)
+        for ((minutesBefore, texts) in milestones) {
+            val alarmTime = departureTimeEpoch - (minutesBefore * 60 * 1000L)
+            if (alarmTime > System.currentTimeMillis()) {
+                val intent = Intent(context, FlightAlarmReceiver::class.java).apply {
+                    putExtra(FlightAlarmReceiver.EXTRA_FLIGHT_NUMBER, flightNumber)
+                    putExtra(FlightAlarmReceiver.EXTRA_TITLE, texts.first)
+                    putExtra(FlightAlarmReceiver.EXTRA_MESSAGE, texts.second)
+                }
 
-        // Only schedule if it's in the future
-        if (alarmTime > System.currentTimeMillis()) {
-            try {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    alarmTime,
-                    pendingIntent
+                val requestCode = (flightNumber + minutesBefore).hashCode()
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    requestCode,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
-            } catch (e: SecurityException) {
-                // Handle EXACT_ALARM permission missing on Android 12+ if necessary
-                e.printStackTrace()
+
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        alarmTime,
+                        pendingIntent
+                    )
+                } catch (e: SecurityException) {
+                    e.printStackTrace()
+                }
             }
         }
+
     }
 }

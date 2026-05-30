@@ -62,9 +62,12 @@ data class KbSearchResult(
     val poiId: String,
     val name: String,
     val category: String,
+    val cuisine: List<String>,
     val terminal: String,
     val isAirside: Boolean,
     val floor: Int,
+    val mapX: Double,
+    val mapY: Double,
     val timings: Timings?,
     val priceRange: String,
     val rating: Double,
@@ -78,6 +81,16 @@ data class KbSearchResult(
 data class KbRoot(
     val pois: List<PoiNode>,
     val services: List<ServiceNode>
+)
+
+@Keep
+data class KbNodeResult(
+    val id: String,
+    val name: String,
+    val type: String,
+    val mapX: Double,
+    val mapY: Double,
+    val score: Double
 )
 
 // ── Tool Implementation ───────────────────────────────────────────────────────
@@ -137,8 +150,42 @@ class AirportKnowledgeBaseTool @Inject constructor(
         nearGate: String? = null,
         maxWalkMin: Int? = null,
         openAt: String? = null,
+        currentX: Double? = null,
+        currentY: Double? = null,
+        maxRadius: Double? = null,
         topK: Int = 5
     ): String {
+        val results = searchRaw(query, terminal, isAirside, isVegOnly, category, nearGate, maxWalkMin, openAt, currentX, currentY, maxRadius, topK)
+        
+        val result = gson.toJson(
+            mapOf(
+                "query" to query,
+                "pois" to results.first,
+                "services" to results.second,
+                "totalMatches" to (results.first.size + results.second.size)
+            )
+        )
+        android.util.Log.d("SkyBuddy", "KB Tool: Found ${results.first.size} POIs and ${results.second.size} services. Result length: ${result.length}")
+        return result
+    }
+
+    /**
+     * Exposes raw fuzzy search results for UI consumption (e.g. Map search bar).
+     */
+    fun searchRaw(
+        query: String,
+        terminal: String? = null,
+        isAirside: Boolean? = null,
+        isVegOnly: Boolean? = null,
+        category: String? = null,
+        nearGate: String? = null,
+        maxWalkMin: Int? = null,
+        openAt: String? = null,
+        currentX: Double? = null,
+        currentY: Double? = null,
+        maxRadius: Double? = null,
+        topK: Int = 5
+    ): Pair<List<KbSearchResult>, List<Map<String, Any>>> {
         android.util.Log.d("SkyBuddy", "KB Tool: Searching for '$query' (terminal=$terminal, airside=$isAirside, cat=$category)")
         val k = topK.coerceIn(1, 10)
         val queryTokens = tokenize(query)
@@ -176,6 +223,12 @@ class AirportKnowledgeBaseTool @Inject constructor(
                 if (openAt != null && poi.timings != null) isOpenAt(poi.timings, openAt)
                 else true
             }
+            .filter { (poi, _) ->
+                if (currentX != null && currentY != null && maxRadius != null) {
+                    val dist = kotlin.math.hypot(poi.mapX - currentX, poi.mapY - currentY)
+                    dist <= maxRadius
+                } else true
+            }
             .sortedByDescending { (_, score) -> score }
             .take(k)
 
@@ -192,9 +245,12 @@ class AirportKnowledgeBaseTool @Inject constructor(
                 poiId = poi.poiId,
                 name = poi.name,
                 category = poi.category,
+                cuisine = poi.cuisine,
                 terminal = poi.terminal,
                 isAirside = poi.isAirside,
                 floor = poi.floor,
+                mapX = poi.mapX,
+                mapY = poi.mapY,
                 timings = poi.timings,
                 priceRange = poi.priceRange,
                 rating = poi.rating,
@@ -219,16 +275,33 @@ class AirportKnowledgeBaseTool @Inject constructor(
             )
         }
 
-        val result = gson.toJson(
-            mapOf(
-                "query" to query,
-                "pois" to poiResults,
-                "services" to serviceResults,
-                "totalMatches" to (poiResults.size + serviceResults.size)
-            )
-        )
-        android.util.Log.d("SkyBuddy", "KB Tool: Found ${poiResults.size} POIs and ${serviceResults.size} services. Result length: ${result.length}")
-        return result
+        return Pair(poiResults, serviceResults)
+    }
+
+    /**
+     * Fast search that returns unified lightweight nodes for the map search bar.
+     */
+    fun searchMapNodes(query: String, topK: Int = 8): List<KbNodeResult> {
+        val queryTokens = tokenize(query)
+        if (queryTokens.isEmpty()) return emptyList()
+
+        val scoredPois = pois.map { poi -> poi to fuzzyScore(queryTokens, poi) }
+            .filter { (_, score) -> score > 0.25 }
+            .map { (poi, score) ->
+                KbNodeResult(poi.poiId, poi.name, poi.category.uppercase(), poi.mapX, poi.mapY, score)
+            }
+
+        val scoredServices = services.map { svc ->
+            svc to tokenFuzzyMatch(queryTokens, svc.tags + listOf(svc.label))
+        }
+            .filter { (_, score) -> score > 0.30 }
+            .map { (svc, score) ->
+                KbNodeResult(svc.serviceId, svc.label, "SERVICE", svc.mapX, svc.mapY, score)
+            }
+
+        return (scoredPois + scoredServices)
+            .sortedByDescending { it.score }
+            .take(topK)
     }
 
     // ── Fuzzy scoring engine ──────────────────────────────────────────────────

@@ -177,7 +177,7 @@ class LiteRtLlmEngine @Inject constructor(
         private const val TAG = "LiteRtLlmEngine"
         const val MODEL_FILE = "gemma.litertlm"
         private val SYSTEM_PROMPT = """
-You are SkyBuddy, an AI travel companion. You run fully on-device.
+You are SkyBuddy, an AI travel companion based on a fine-tuned gemma4 model. You run fully on-device.
 
 ## MANDATORY TOOL RULES — follow these before doing anything else
 

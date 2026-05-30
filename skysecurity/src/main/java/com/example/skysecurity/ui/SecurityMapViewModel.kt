@@ -8,6 +8,7 @@ import com.example.skybuddy.shared.data.repository.MapRepository
 import com.example.skybuddy.shared.domain.pathfinding.AStarPathfinder
 import com.example.skybuddy.shared.location.IndoorLocationManager
 import com.example.skysecurity.location.BlockedRegionBroadcaster
+import com.example.skysecurity.location.StopSoundBroadcaster
 import com.example.skysecurity.location.SOSAlert
 import com.example.skysecurity.location.SOSBeaconScanner
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,7 +34,8 @@ class SecurityMapViewModel @Inject constructor(
     private val mapRepository: MapRepository,
     private val indoorLocationManager: IndoorLocationManager,
     private val sosScanner: SOSBeaconScanner,
-    private val blockedBroadcaster: BlockedRegionBroadcaster
+    private val blockedBroadcaster: BlockedRegionBroadcaster,
+    private val stopSoundBroadcaster: StopSoundBroadcaster
 ) : ViewModel() {
 
     /** Beacon error/status events — collect in the UI to show Snackbar. */
@@ -61,7 +63,7 @@ class SecurityMapViewModel @Inject constructor(
 
     init {
         loadMap()
-        sosScanner.startScanning()
+        // Scanning is now managed by BeaconForegroundService — no manual start here
 
         // Auto-navigate to new alerts as they arrive
         viewModelScope.launch {
@@ -82,6 +84,13 @@ class SecurityMapViewModel @Inject constructor(
             try {
                 val layout = mapRepository.getMapLayout()
                 _state.update { it.copy(layout = layout) }
+                // Start security at the entrance
+                val entrance = layout.floors.flatMap { it.nodes }.find { it.id == "ENTRANCE" }
+                if (entrance != null) {
+                    indoorLocationManager.calibratePosition(entrance.x, entrance.y)
+                    val floor = layout.floors.find { f -> f.nodes.any { it.id == "ENTRANCE" } }?.level ?: 1
+                    _state.update { it.copy(currentFloor = floor) }
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -113,7 +122,7 @@ class SecurityMapViewModel @Inject constructor(
                 }
             if (targetNode != null) {
                 viewModelScope.launch(Dispatchers.Default) {
-                    val path = pathfinder.findPath(layout, floor, startX, startY, targetNode.id)
+                    val path = pathfinder.findPath(layout, floor, startX, startY, targetNode)
                     _state.update { it.copy(currentPath = path) }
                 }
             }
@@ -141,8 +150,17 @@ class SecurityMapViewModel @Inject constructor(
         blockedBroadcaster.broadcastBlockedNodes(emptySet())
     }
 
+    fun stopUserSound(alert: SOSAlert) {
+        // identity format is "Name|Tag"
+        val parts = alert.identity.split("|")
+        if (parts.size >= 2) {
+            val tag = parts[1].trim()
+            stopSoundBroadcaster.broadcastStopSound(tag)
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
-        sosScanner.stopScanning()
+        // Scanning is now managed by BeaconForegroundService — do not stop here
     }
 }

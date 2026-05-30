@@ -70,17 +70,27 @@ class SOSBeaconEmitter @Inject constructor(
         try { advertiser?.stopAdvertising(advertiseCallback) } catch (_: SecurityException) {}
         isAdvertising = false
 
-        // Build payload within 61-char BLE name limit
-        var payload = "SBSOS:$type"
+        val prefs = context.getSharedPreferences(context.packageName + "_preferences", Context.MODE_PRIVATE)
+        val displayNameRaw = prefs.getString("user_display_name", "") ?: ""
+        val displayName = if (displayNameRaw.isEmpty()) "Unknown" else displayNameRaw.take(10)
+        
+        val androidId = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "0000"
+        val deviceTag = androidId.takeLast(4).uppercase()
+
+        // Build payload within 53-char BLE limit
+        var payload = "SBSOS:[$displayName|$deviceTag]$type"
         if (x != null && y != null) {
             val locSuffix = "|${x.toInt()},${y.toInt()}"
-            if (payload.length + locSuffix.length <= 61) {
+            if (payload.length + locSuffix.length <= 53) {
                 payload += locSuffix
             }
         }
 
+        val part1 = payload.take(26)
+        val part2 = if (payload.length > 26) payload.substring(26).take(24) else ""
+
         try {
-            adapter.name = payload.take(61)
+            adapter.name = part1
         } catch (e: SecurityException) {
             val msg = "SOS broadcast failed: missing Bluetooth permission"
             Log.e("SOSBeaconEmitter", msg, e)
@@ -94,12 +104,16 @@ class SOSBeaconEmitter @Inject constructor(
             .setConnectable(false)
             .build()
 
-        val advertiseData = AdvertiseData.Builder()
-            .setIncludeDeviceName(false)
-            .build()
+        val advertiseDataBuilder = AdvertiseData.Builder()
+            .setIncludeDeviceName(part2.isEmpty())
+            
+        if (part2.isNotEmpty()) {
+            advertiseDataBuilder.addManufacturerData(0xFFFF, part2.toByteArray(Charsets.UTF_8))
+        }
+        val advertiseData = advertiseDataBuilder.build()
 
         val scanResponse = AdvertiseData.Builder()
-            .setIncludeDeviceName(true)
+            .setIncludeDeviceName(part2.isNotEmpty())
             .build()
 
         try {

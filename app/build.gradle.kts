@@ -4,7 +4,7 @@ val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
-}
+    }
 
 plugins {
     id("com.android.application")
@@ -25,7 +25,9 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        buildConfigField("String", "AIRLABS_API_KEY", "\"${localProperties.getProperty("airlabs.apiKey", "YOUR_AIRLABS_KEY")}\"")
+        buildConfigField("String", "AIRLABS_API_KEY", "\"${localProperties.getProperty("airlabs.apiKey", "YOUR_AIRLABS_KEY").trim()}\"")
+        buildConfigField("String", "LOCAL_API_BASE_URL", "\"${localProperties.getProperty("localApi.baseUrl", "").trim()}\"")
+        buildConfigField("String", "LOCAL_API_PASSWORD", "\"${localProperties.getProperty("localApi.password", "").trim()}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -93,8 +95,9 @@ dependencies {
     implementation("androidx.hilt:hilt-work:1.2.0")
     ksp("androidx.hilt:hilt-compiler:1.2.0")
 
-    // ML Kit Barcode Scanning
+    // ML Kit Barcode Scanning & Text Recognition
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("com.google.mlkit:text-recognition:16.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // LiteRT LM (on-device LLM)

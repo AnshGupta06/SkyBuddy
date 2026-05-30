@@ -25,14 +25,16 @@ data class SOSAlert(
     val locationX: Int? = null,
     val locationY: Int? = null,
     val timestamp: Long = System.currentTimeMillis(),
-    val acknowledged: Boolean = false
+    val acknowledged: Boolean = false,
+    val identity: String = "Unknown"
 )
 
 @Singleton
 class SOSBeaconScanner @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private var isScanning = false
+    var isScanning = false
+        private set
     private val _alerts = MutableStateFlow<List<SOSAlert>>(emptyList())
     val alerts: StateFlow<List<SOSAlert>> = _alerts.asStateFlow()
     private val seenPayloads: MutableSet<String> =
@@ -42,32 +44,64 @@ class SOSBeaconScanner @Inject constructor(
     private val _scanEvents = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val scanEvents: SharedFlow<String> = _scanEvents.asSharedFlow()
 
+    /** Called by the watchdog service to inject recovery events into the scan pipeline. */
+    fun emitEvent(msg: String) {
+        _scanEvents.tryEmit(msg)
+    }
+
     private val scanCallback = object : ScanCallback() {
         @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             try {
-                val deviceName = result?.scanRecord?.deviceName
-                if (deviceName.isNullOrEmpty()) return
-                if (!deviceName.startsWith("SBSOS:")) return
+                val baseDeviceName = result?.scanRecord?.deviceName
+                if (baseDeviceName.isNullOrEmpty()) return
+
+                val manufacturerData = result?.scanRecord?.getManufacturerSpecificData(0xFFFF)
+                val part2 = if (manufacturerData != null) String(manufacturerData, Charsets.UTF_8) else ""
+                val fullPayload = baseDeviceName + part2
+
+                // Handle SOS from SOSBeaconEmitter (main app): "SBSOS:<TYPE>|<X>,<Y>"
+                // Handle SOS from SkyBeacon app:                "SB:SOS|<message>"
+                val isSbsos = fullPayload.startsWith("SBSOS:")
+                val isBeaconSos = fullPayload.startsWith("SB:SOS")
+                if (!isSbsos && !isBeaconSos) return
 
                 // Deduplicate
-                if (!seenPayloads.add(deviceName)) return
+                if (!seenPayloads.add(fullPayload)) return
 
-                val payload = deviceName.removePrefix("SBSOS:")
-                val parts = payload.split("|")
-                val type = parts[0]
+                var identity = "Unknown"
+                val type: String
                 var locX: Int? = null
                 var locY: Int? = null
-                if (parts.size >= 2) {
-                    val coords = parts[1].split(",")
-                    if (coords.size == 2) {
-                        locX = coords[0].toIntOrNull()
-                        locY = coords[1].toIntOrNull()
+
+                if (isSbsos) {
+                    var payload = fullPayload.removePrefix("SBSOS:")
+                    if (payload.startsWith("[")) {
+                        val closeIndex = payload.indexOf("]")
+                        if (closeIndex != -1) {
+                            identity = payload.substring(1, closeIndex)
+                            payload = payload.substring(closeIndex + 1)
+                        }
                     }
+                    val parts = payload.split("|")
+                    type = parts[0]
+                    if (parts.size >= 2) {
+                        val coords = parts[1].split(",")
+                        if (coords.size == 2) {
+                            locX = coords[0].toIntOrNull()
+                            locY = coords[1].toIntOrNull()
+                        }
+                    }
+                } else {
+                    // Format: SB:SOS|<message>
+                    val payload = fullPayload.removePrefix("SB:")
+                    val parts = payload.split("|")
+                    type = parts[0] // "SOS"
+                    // SkyBeacon doesn't send coordinates, so locX/locY stay null
                 }
 
-                val alert = SOSAlert(type = type, locationX = locX, locationY = locY)
-                Log.d(TAG, "SOS received: $type at ($locX, $locY)")
+                val alert = SOSAlert(type = type, locationX = locX, locationY = locY, identity = identity)
+                Log.d(TAG, "SOS received: $type at ($locX, $locY) from: $fullPayload")
                 _alerts.value = listOf(alert) + _alerts.value
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing scan result", e)

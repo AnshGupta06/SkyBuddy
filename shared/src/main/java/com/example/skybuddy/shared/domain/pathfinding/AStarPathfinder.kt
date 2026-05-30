@@ -44,12 +44,11 @@ class AStarPathfinder {
         floorLevel: Int,
         startX: Float,
         startY: Float,
-        goalId: String,
+        goalNode: LayoutNode,
         blockedNodeIds: Set<String> = emptySet()
     ): List<LayoutNode> {
-        Log.d("AStar", "Finding path from user($startX, $startY) to $goalId on floor $floorLevel, blocked=${blockedNodeIds.size}")
+        Log.d("AStar", "Finding path from user($startX, $startY) to ${goalNode.id} on floor $floorLevel, blocked=${blockedNodeIds.size}")
         val floor = layout.floors.find { it.level == floorLevel } ?: return emptyList()
-        val goalNode = floor.nodes.find { it.id == goalId } ?: return emptyList()
         val startNode = LayoutNode(id = "USER", type = "USER", x = startX, y = startY)
 
         // 1. Create or reuse Collision Mask

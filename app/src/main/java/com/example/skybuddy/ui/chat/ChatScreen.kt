@@ -8,6 +8,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -22,8 +23,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -33,13 +37,18 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
+
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.foundation.border
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,9 +59,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +95,8 @@ private val quickReplies = listOf(
 fun ChatScreen(
     flightNumber: String?,
     onBack: () -> Unit,
+    onSettingsClicked: () -> Unit,
+    onPhaseAdvanced: (com.example.skybuddy.ui.journey.JourneyPhase) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val voiceController = viewModel.voiceController
@@ -89,8 +104,13 @@ fun ChatScreen(
     val timelineEvents by viewModel.timelineEvents.collectAsState()
     val pinnedFlight by viewModel.pinnedFlight.collectAsState()
     val voiceEvent by voiceController.events.collectAsState()
+    val isListening by voiceController.isListening.collectAsState()
+    val isMuted by voiceController.isMuted.collectAsState()
     val context = LocalContext.current
     val listState = rememberLazyListState()
+
+    val currentPhase by viewModel.currentPhase.collectAsState()
+    val checklistItems by viewModel.checklistItems.collectAsState()
 
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicturePreview()
@@ -102,6 +122,22 @@ fun ChatScreen(
     }
     val cameraPermission = rememberPermissionController { granted ->
         if (granted) cameraLauncher.launch(null)
+    }
+
+    val destinationNodeId by viewModel.destinationNodeId.collectAsState(initial = null)
+    var initialDestinationNodeId by remember { mutableStateOf<String?>(null) }
+    var initializedDestination by remember { mutableStateOf(false) }
+
+    LaunchedEffect(destinationNodeId) {
+        if (!initializedDestination) {
+            initialDestinationNodeId = destinationNodeId
+            initializedDestination = true
+        } else {
+            if (destinationNodeId != initialDestinationNodeId && destinationNodeId != null) {
+                // The AI set a navigation target, return to map to view it
+                onBack()
+            }
+        }
     }
 
     LaunchedEffect(flightNumber) {
@@ -125,13 +161,19 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(currentPhase, checklistItems.isNotEmpty()) {
+        if (currentPhase == com.example.skybuddy.ui.journey.JourneyPhase.HOME && checklistItems.isNotEmpty()) {
+            viewModel.ensureChecklistVisible()
+        }
+    }
+
+    // ── STT: handle voice recognition results ──
     LaunchedEffect(voiceEvent) {
         when (val ev = voiceEvent) {
             is VoiceEvent.Heard -> {
                 viewModel.onInputChanged(ev.text)
-                val sent = viewModel.sendText()
+                viewModel.sendText()
                 voiceController.consume()
-                if (state.isIntercomMode && sent != null) { /* response will be spoken via streaming TTS */ }
             }
             is VoiceEvent.Error -> voiceController.consume()
             null -> Unit
@@ -142,7 +184,7 @@ fun ChatScreen(
     // Streaming text turns handle TTS line-by-line inside the ViewModel.
     LaunchedEffect(timelineEvents.lastOrNull()?.id) {
         val last = timelineEvents.lastOrNull()
-        if (state.isIntercomMode && last?.uiComponentType == "TEXT" && last.role == "GEMMA") {
+        if (last?.uiComponentType == "TEXT" && last.role == "GEMMA") {
             // Skip if the streaming TTS already handled this turn
             if (!viewModel.didStreamingTtsHandle()) {
                 voiceController.speak(last.content)
@@ -158,6 +200,8 @@ fun ChatScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(BackgroundGray)
+            .systemBarsPadding()
+            .imePadding()
             .padding(12.dp)
     ) {
 
@@ -187,20 +231,34 @@ fun ChatScreen(
                 color = PrimaryPurple,
                 modifier = Modifier.weight(1f)
             )
+            Spacer(Modifier.width(8.dp))
+            // TTS mute toggle
             IconButton(
-                onClick = viewModel::toggleIntercom,
+                onClick = { voiceController.toggleMute() },
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(
-                        if (state.isIntercomMode) PrimaryPurple.copy(alpha = 0.1f)
-                        else Color.White
-                    )
+                    .background(if (isMuted) PrimaryPurple.copy(alpha = 0.12f) else Color.White)
             ) {
                 Icon(
-                    if (state.isIntercomMode) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
-                    contentDescription = if (state.isIntercomMode) "Mute spoken replies" else "Unmute spoken replies",
-                    tint = if (state.isIntercomMode) PrimaryPurple else OnSurfaceDim,
+                    if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                    contentDescription = if (isMuted) "Unmute" else "Mute",
+                    tint = if (isMuted) PrimaryPurple else OnSurfaceDim,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            IconButton(
+                onClick = onSettingsClicked,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+            ) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = OnSurfaceDim,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -243,7 +301,17 @@ fun ChatScreen(
                     }
                 }
             }
-            items(timelineEvents, key = { it.id }) { ConversationFlowItem(it) }
+            
+            items(timelineEvents, key = { it.id }) { event ->
+                if (event.uiComponentType == "CHECKLIST_CARD") {
+                    ChecklistPanel(
+                        items = checklistItems,
+                        onToggle = { id, completed -> viewModel.toggleChecklistItem(id, completed) }
+                    )
+                } else {
+                    ConversationFlowItem(event)
+                }
+            }
 
             // ── Streaming response area ──
             if (state.isThinking) {
@@ -289,6 +357,22 @@ fun ChatScreen(
             }
         }
 
+        // ── Phase Action Button ──
+        PhaseActionButton(
+            currentPhase = currentPhase,
+            onClick = {
+                val nextPhase = when (currentPhase) {
+                    com.example.skybuddy.ui.journey.JourneyPhase.HOME -> com.example.skybuddy.ui.journey.JourneyPhase.AIRPORT_ENTRANCE
+                    com.example.skybuddy.ui.journey.JourneyPhase.AIRPORT_ENTRANCE -> com.example.skybuddy.ui.journey.JourneyPhase.BAGGAGE_DROP
+                    com.example.skybuddy.ui.journey.JourneyPhase.BAGGAGE_DROP -> com.example.skybuddy.ui.journey.JourneyPhase.SECURITY_CHECKPOINT
+                    com.example.skybuddy.ui.journey.JourneyPhase.SECURITY_CHECKPOINT -> com.example.skybuddy.ui.journey.JourneyPhase.GATE
+                    else -> currentPhase
+                }
+                viewModel.advancePhase(nextPhase)
+                onPhaseAdvanced(nextPhase)
+            }
+        )
+
         // ── Input area ──
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
@@ -301,23 +385,41 @@ fun ChatScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Mic button
+                val micPulseScale by animateFloatAsState(
+                    targetValue = if (isListening) 1.2f else 1f,
+                    animationSpec = if (isListening) {
+                        infiniteRepeatable(
+                            animation = tween(600, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        )
+                    } else {
+                        tween(200)
+                    },
+                    label = "micPulse"
+                )
+
                 IconButton(
                     onClick = {
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) voiceController.startListening()
-                        else recordPermission.request(Manifest.permission.RECORD_AUDIO)
+                        if (isListening) {
+                            voiceController.stopListening()
+                        } else {
+                            val granted = ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (granted) voiceController.startListening()
+                            else recordPermission.request(Manifest.permission.RECORD_AUDIO)
+                        }
                     },
                     modifier = Modifier
                         .size(36.dp)
+                        .scale(micPulseScale)
                         .clip(CircleShape)
-                        .background(BackgroundGray)
+                        .background(if (isListening) PrimaryPurple else BackgroundGray)
                 ) {
                     Icon(
                         Icons.Filled.Mic,
                         contentDescription = "Voice input",
-                        tint = OnSurfaceDim,
+                        tint = if (isListening) Color.White else OnSurfaceDim,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -353,7 +455,7 @@ fun ChatScreen(
                     value = state.input,
                     onValueChange = viewModel::onInputChanged,
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Ask SkyBuddy", color = OnSurfaceDim) },
+                    placeholder = { Text(if (isListening) "Listening..." else "Ask SkyBuddy", color = OnSurfaceDim) },
                     singleLine = true,
                     shape = RoundedCornerShape(18.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -499,5 +601,98 @@ private fun ThinkingIndicator(toolLabel: String? = null) {
             style = MaterialTheme.typography.bodySmall,
             color = OnSurfaceDim
         )
+    }
+    }
+
+@Composable
+private fun ChecklistPanel(
+    items: List<com.example.skybuddy.data.repository.ChecklistItemEntity>,
+    onToggle: (String, Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .padding(16.dp)
+    ) {
+        Text(
+            "Preflight Checklist",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = OnSurfaceDark
+        )
+        Spacer(Modifier.height(12.dp))
+        Column {
+            items.forEach { item ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(com.example.skybuddy.ui.theme.SurfaceWhite)
+                        .clickable { onToggle(item.id, !item.completed) }
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(if (item.completed) PrimaryPurple else Color.Transparent)
+                            .border(
+                                width = 2.dp,
+                                color = if (item.completed) PrimaryPurple else OnSurfaceDim.copy(alpha = 0.5f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (item.completed) {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    
+                    Spacer(Modifier.width(12.dp))
+                    
+                    Text(
+                        text = item.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (item.completed) OnSurfaceDim else OnSurfaceDark,
+                        textDecoration = if (item.completed) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhaseActionButton(
+    currentPhase: com.example.skybuddy.ui.journey.JourneyPhase,
+    onClick: () -> Unit
+) {
+    val buttonText = when (currentPhase) {
+        com.example.skybuddy.ui.journey.JourneyPhase.HOME -> "I am at the airport"
+        com.example.skybuddy.ui.journey.JourneyPhase.AIRPORT_ENTRANCE -> "Baggage dropped off"
+        com.example.skybuddy.ui.journey.JourneyPhase.BAGGAGE_DROP -> "Cleared security"
+        com.example.skybuddy.ui.journey.JourneyPhase.SECURITY_CHECKPOINT -> "At gate"
+        else -> null
+    }
+
+    if (buttonText != null) {
+        androidx.compose.material3.Button(
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = PrimaryPurple),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Text(buttonText, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold))
+        }
     }
 }

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material.icons.filled.Luggage
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -251,6 +252,10 @@ fun FlightInfoScreen(
 
                         Spacer(Modifier.height(20.dp))
 
+                        // ── Countdown & Suggestion ──
+                        CountdownTimerAndSuggestion(f?.departureTimeEpoch ?: 0L)
+                        Spacer(Modifier.height(20.dp))
+
                         // ── Info Grid ──
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -389,6 +394,79 @@ private fun InfoTile(
                 value,
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = Color.White
+            )
+        }
+    }
+}
+
+// ── Countdown Timer & Suggestions ───────────────────────────
+@Composable
+private fun CountdownTimerAndSuggestion(departureTimeEpoch: Long) {
+    if (departureTimeEpoch == 0L) return
+
+    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(departureTimeEpoch) {
+        while (true) {
+            currentTime = System.currentTimeMillis()
+            delay(60000L) // Update every minute
+        }
+    }
+
+    val remainingMillis = departureTimeEpoch - currentTime
+    val minutesLeft = (remainingMillis / (60 * 1000)).toInt()
+
+    if (minutesLeft > 0) {
+        val hours = minutesLeft / 60
+        val mins = minutesLeft % 60
+        val timeString = if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
+
+        val suggestion = when {
+            minutesLeft > 180 -> "Plenty of time. Relax, have a meal, or explore the airport shops."
+            minutesLeft > 120 -> "Baggage drop is likely open. Time to check in your luggage."
+            minutesLeft > 60 -> "Head towards security check. Grab a quick bite if you haven't."
+            minutesLeft > 45 -> "Boarding starting soon. Please proceed to your gate."
+            minutesLeft > 20 -> "Boarding is in progress. Hurry up and head to the gate immediately!"
+            else -> "Final call! Please proceed to the gate immediately."
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFFEA580C).copy(alpha = 0.15f))
+                .padding(16.dp)
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Timer, contentDescription = "Timer", tint = Color(0xFFEA580C), modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "$timeString until departure",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFFEA580C)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    suggestion,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            }
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                .padding(16.dp)
+        ) {
+            Text(
+                "Flight has departed or is departing now.",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = Color(0xFF10B981)
             )
         }
     }

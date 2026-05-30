@@ -25,12 +25,15 @@ class MlKitBarcodeScanner @Inject constructor() {
             val image = InputImage.fromFilePath(context, imageUri)
             val barcodes = scanner.process(image).await()
             if (barcodes.isNotEmpty()) {
-                barcodes.first().rawValue
+                val raw = barcodes.first().rawValue
+                android.util.Log.d("MlKitBarcodeScanner", "Found barcode: $raw")
+                raw
             } else {
+                android.util.Log.w("MlKitBarcodeScanner", "No barcode found in image")
                 null
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("MlKitBarcodeScanner", "Barcode scanning failed", e)
             null
         }
     }
@@ -40,12 +43,15 @@ class MlKitBarcodeScanner @Inject constructor() {
             val image = InputImage.fromBitmap(bitmap, 0)
             val barcodes = scanner.process(image).await()
             if (barcodes.isNotEmpty()) {
-                barcodes.first().rawValue
+                val raw = barcodes.first().rawValue
+                android.util.Log.d("MlKitBarcodeScanner", "Found barcode (bitmap): $raw")
+                raw
             } else {
+                android.util.Log.w("MlKitBarcodeScanner", "No barcode found in bitmap")
                 null
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("MlKitBarcodeScanner", "Barcode bitmap scanning failed", e)
             null
         }
     }

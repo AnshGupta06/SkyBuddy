@@ -9,10 +9,14 @@ import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.ParcelUuid
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -47,6 +51,8 @@ class MainActivity : AppCompatActivity() {
         statusText = findViewById(R.id.status_text)
         
         checkPermissions()
+        startBeaconService()
+        requestBatteryOptExemption()
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         val adapter = bluetoothManager.adapter
@@ -88,7 +94,7 @@ class MainActivity : AppCompatActivity() {
                 .setTitle("Emergency SOS")
                 .setMessage("Send Emergency Alert to all users?")
                 .setPositiveButton("Confirm") { _, _ ->
-                    triggerBroadcast(sosMsg.take(61))
+                    triggerBroadcast(sosMsg.take(53))
                     
                     lifecycleScope.launch(Dispatchers.IO) {
                         val db = com.example.skybeacon.data.AppDatabase.getDatabase(this@MainActivity)
@@ -106,12 +112,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Trigger a broadcast by delegating to the [BeaconAdvertiseService].
+     * Falls back to in-process advertising if the service isn't ready.
+     */
     fun triggerBroadcast(payload: String) {
-        startAdvertising(payload)
+        val intent = Intent(this, BeaconAdvertiseService::class.java).apply {
+            action = BeaconAdvertiseService.ACTION_START_ADVERTISING
+            putExtra(BeaconAdvertiseService.EXTRA_PAYLOAD, payload)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+        statusText.text = "Broadcasting via service..."
     }
 
     fun haltBroadcast() {
-        stopAdvertising()
+        val intent = Intent(this, BeaconAdvertiseService::class.java).apply {
+            action = BeaconAdvertiseService.ACTION_STOP_ADVERTISING
+        }
+        startService(intent)
+        statusText.text = "Stopped Advertising"
     }
 
     private fun checkPermissions() {
@@ -123,6 +146,9 @@ class MainActivity : AppCompatActivity() {
             permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         val missing = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
@@ -133,72 +159,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    @SuppressLint("MissingPermission")
-    private fun startAdvertising(payload: String) {
-        if (advertiser == null) return
-
-        // Always try to stop first — isAdvertising is set asynchronously
-        // by the callback, so it may not reflect the true BLE stack state.
-        // Calling stopAdvertising when not advertising is harmless.
-        try { advertiser?.stopAdvertising(advertiseCallback) } catch (_: SecurityException) {}
-        isAdvertising = false
-
-        // adapter.name setter requires BLUETOOTH_CONNECT at runtime.
-        val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
-        try {
-            adapter.name = payload
-        } catch (e: SecurityException) {
-            statusText.text = "Need BLUETOOTH_CONNECT permission. Tap again after granting."
-            return
-        }
-
-        val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-            .setConnectable(false)
-            .build()
-
-        // The 31-byte advertisement is too small for our payload, so we put the
-        // device name in the scan response (its own 31-byte budget) and keep the
-        // main advertisement empty. The scanner merges both into ScanRecord.
-        val advertiseData = AdvertiseData.Builder()
-            .setIncludeDeviceName(false)
-            .build()
-
-        val scanResponse = AdvertiseData.Builder()
-            .setIncludeDeviceName(true)
-            .build()
-
-        try {
-            advertiser?.startAdvertising(settings, advertiseData, scanResponse, advertiseCallback)
-        } catch (e: SecurityException) {
-            statusText.text = "Need BLUETOOTH_ADVERTISE permission. Tap again after granting."
+    private fun startBeaconService() {
+        val intent = Intent(this, BeaconAdvertiseService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
         }
     }
 
-    @SuppressLint("MissingPermission")
-    private fun stopAdvertising() {
-        try {
-            advertiser?.stopAdvertising(advertiseCallback)
-        } catch (_: SecurityException) {}
-        isAdvertising = false
-        statusText.text = "Stopped Advertising"
-
-        val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
-        try {
-            adapter.name = "Android"
-        } catch (_: Exception) {}
+    private fun requestBatteryOptExemption() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            } catch (_: Exception) { /* Some devices don't support this intent */ }
+        }
     }
 
-    private val advertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-            isAdvertising = true
-            statusText.text = "Advertising Started Successfully!"
-        }
-
-        override fun onStartFailure(errorCode: Int) {
-            isAdvertising = false
-            statusText.text = "Advertising Failed: $errorCode"
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        stopService(Intent(this, BeaconAdvertiseService::class.java))
     }
 }

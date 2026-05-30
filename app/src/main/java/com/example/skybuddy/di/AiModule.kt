@@ -1,6 +1,6 @@
 package com.example.skybuddy.di
 
-import com.example.skybuddy.ai.LiteRtLlmEngine
+import com.example.skybuddy.ai.HybridLlmEngine
 import com.example.skybuddy.ai.LlmEngine
 import dagger.Binds
 import dagger.Module
@@ -13,5 +13,5 @@ import javax.inject.Singleton
 abstract class AiModule {
     @Binds
     @Singleton
-    abstract fun bindLlmEngine(impl: LiteRtLlmEngine): LlmEngine
+    abstract fun bindLlmEngine(impl: HybridLlmEngine): LlmEngine
 }

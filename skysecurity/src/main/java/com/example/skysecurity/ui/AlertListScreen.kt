@@ -77,6 +77,7 @@ fun AlertListScreen(
                         alert = alert,
                         timeStr = dateFormat.format(Date(alert.timestamp)),
                         onAcknowledge = { viewModel.acknowledgeAlert(alert.id) },
+                        onStopSound = { viewModel.stopUserSound(alert) },
                         onNavigate = {
                             viewModel.navigateToAlert(alert)
                             onNavigateToAlert(alert)
@@ -93,21 +94,29 @@ private fun AlertCard(
     alert: SOSAlert,
     timeStr: String,
     onAcknowledge: () -> Unit,
+    onStopSound: () -> Unit,
     onNavigate: () -> Unit
 ) {
-    val typeColor = when (alert.type) {
-        "EMERGENCY" -> Color(0xFFFF3B30)
-        "SUSPICIOUS" -> Color(0xFFFF9500)
-        "MEDICAL" -> Color(0xFF34C759)
-        "FIRE" -> Color(0xFFFF6B35)
+    val typeColor = when {
+        alert.type.contains("EMERGENCY") || alert.type.contains("EMERGE") -> Color(0xFFFF3B30)
+        alert.type.contains("SUSPICIOUS") || alert.type.contains("SUSPIC") -> Color(0xFFFF9500)
+        alert.type.contains("MEDICAL") || alert.type.contains("MEDIC") -> Color(0xFF34C759)
+        alert.type.contains("FIRE") -> Color(0xFFFF6B35)
         else -> Color(0xFF8E8EA0)
     }
-    val typeIcon = when (alert.type) {
-        "EMERGENCY" -> Icons.Filled.Warning
-        "SUSPICIOUS" -> Icons.Filled.Visibility
-        "MEDICAL" -> Icons.Filled.LocalHospital
-        "FIRE" -> Icons.Filled.LocalFireDepartment
+    val typeIcon = when {
+        alert.type.contains("EMERGENCY") || alert.type.contains("EMERGE") -> Icons.Filled.Warning
+        alert.type.contains("SUSPICIOUS") || alert.type.contains("SUSPIC") -> Icons.Filled.Visibility
+        alert.type.contains("MEDICAL") || alert.type.contains("MEDIC") -> Icons.Filled.LocalHospital
+        alert.type.contains("FIRE") -> Icons.Filled.LocalFireDepartment
         else -> Icons.Filled.Report
+    }
+    val displayLabel = when {
+        alert.type.contains("EMERGENCY") || alert.type.contains("EMERGE") -> "Emergency"
+        alert.type.contains("SUSPICIOUS") || alert.type.contains("SUSPIC") -> "Suspicious Behaviour"
+        alert.type.contains("MEDICAL") || alert.type.contains("MEDIC") -> "Medical"
+        alert.type.contains("FIRE") -> "Fire"
+        else -> "Other SOS"
     }
 
     Surface(
@@ -128,11 +137,12 @@ private fun AlertCard(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        alert.type.replaceFirstChar { it.uppercase() },
+                        displayLabel,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = if (alert.acknowledged) Color(0xFF8E8EA0) else Color.White
                     )
+                    Text("Reported by: ${alert.identity}", style = MaterialTheme.typography.bodySmall, color = Color(0xFFE0E0E0))
                     Text(timeStr, style = MaterialTheme.typography.bodySmall, color = Color(0xFF8E8EA0))
                 }
                 if (alert.acknowledged) {
@@ -166,6 +176,16 @@ private fun AlertCard(
                         Spacer(Modifier.width(4.dp))
                         Text("Navigate")
                     }
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = onStopSound,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5856D6))
+                ) {
+                    Icon(Icons.Filled.VolumeOff, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Stop User Sound", fontWeight = FontWeight.Bold)
                 }
             }
         }

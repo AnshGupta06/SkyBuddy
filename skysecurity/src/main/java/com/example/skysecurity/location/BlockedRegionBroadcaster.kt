@@ -8,6 +8,7 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.util.Log
+import com.example.skybuddy.shared.data.BeaconCodec
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,12 +81,11 @@ class BlockedRegionBroadcaster @Inject constructor(
             isAdvertising = false
         }
 
-        // Build payload — empty string after prefix = clear signal for the main app
-        val payload = if (nodeIds.isEmpty()) {
-            "SBBLK:"
-        } else {
-            "SBBLK:${nodeIds.joinToString(",")}".take(61)
-        }
+        // Build payload — BeaconCodec encodes blocked set as a compact hex
+        // bitfield that always fits in the 29-char BLE name limit.
+        // Empty set -> "SBBLK:" (clear signal for the main app).
+        val payload = BeaconCodec.encodeBlocked(nodeIds)
+        Log.d(TAG, "Broadcasting payload (${payload.length} chars): $payload")
 
         try {
             adapter.name = payload
@@ -102,8 +102,16 @@ class BlockedRegionBroadcaster @Inject constructor(
             .setConnectable(false)
             .build()
 
-        val advertiseData = AdvertiseData.Builder().setIncludeDeviceName(false).build()
-        val scanResponse = AdvertiseData.Builder().setIncludeDeviceName(true).build()
+        // Use dedicated Manufacturer ID (0xFFFD) for blocked regions
+        // to ensure it stays in the primary advertisement packet.
+        val advertiseData = AdvertiseData.Builder()
+            .setIncludeDeviceName(false)
+            .addManufacturerData(0xFFFD, payload.toByteArray(Charsets.UTF_8))
+            .build()
+            
+        val scanResponse = AdvertiseData.Builder()
+            .setIncludeDeviceName(true)
+            .build()
 
         try {
             advertiser?.startAdvertising(settings, advertiseData, scanResponse, advertiseCallback)

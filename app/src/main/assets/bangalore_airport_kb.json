@@ -2049,6 +2049,734 @@
         "GATE_D11": "7 min"
       },
       "notes": "Post-security domestic lounge. Priority Pass, DragonPass accepted. Showers and quiet zone."
+    },
+    {
+      "poiId": "BLR_MCDONALDS_T1",
+      "name": "McDonald's",
+      "category": "Fast Food",
+      "cuisine": [
+        "American",
+        "Burgers"
+      ],
+      "terminal": "T1",
+      "zone": "T1_DEP_POST_SEC",
+      "floor": 3,
+      "mapX": 450,
+      "mapY": 100,
+      "isAirside": true,
+      "timings": {
+        "open": "00:00",
+        "close": "23:59",
+        "days": "Everyday"
+      },
+      "priceRange": "$",
+      "rating": 4.2,
+      "tags": [
+        "burger",
+        "fries",
+        "fast food",
+        "mcdonalds",
+        "mcveggie",
+        "kids meal",
+        "cheap"
+      ],
+      "menu": [
+        {
+          "item": "McVeggie Burger",
+          "price": 150,
+          "category": "Mains",
+          "isVeg": true,
+          "popular": true,
+          "description": "Classic veg burger with crispy patty."
+        },
+        {
+          "item": "Chicken Maharaja Mac",
+          "price": 250,
+          "category": "Mains",
+          "isVeg": false,
+          "popular": true,
+          "description": "Double decker chicken burger."
+        },
+        {
+          "item": "Large Fries",
+          "price": 120,
+          "category": "Sides",
+          "isVeg": true,
+          "popular": true,
+          "description": "Crispy golden fries."
+        }
+      ],
+      "walkingTimeFromGates": {
+        "G1": "2 min",
+        "G2": "3 min"
+      },
+      "notes": "Very busy during peak hours."
+    },
+    {
+      "poiId": "BLR_IRISH_HOUSE_T2",
+      "name": "The Irish House",
+      "category": "Bar & Pub",
+      "cuisine": [
+        "Irish",
+        "Continental"
+      ],
+      "terminal": "T2",
+      "zone": "T2_DEP_POST_SEC",
+      "floor": 4,
+      "mapX": 480,
+      "mapY": 120,
+      "isAirside": true,
+      "timings": {
+        "open": "11:00",
+        "close": "23:00",
+        "days": "Everyday"
+      },
+      "priceRange": "$$$",
+      "rating": 4.5,
+      "tags": [
+        "bar",
+        "beer",
+        "pub",
+        "irish house",
+        "alcohol",
+        "drinks",
+        "snacks",
+        "relax"
+      ],
+      "menu": [
+        {
+          "item": "Pint of Guinness",
+          "price": 600,
+          "category": "Drinks",
+          "isVeg": true,
+          "popular": true,
+          "description": "Classic Irish stout."
+        },
+        {
+          "item": "Grande Nachos",
+          "price": 450,
+          "category": "Snacks",
+          "isVeg": true,
+          "popular": true,
+          "description": "Loaded nachos with cheese and jalapeños."
+        }
+      ],
+      "walkingTimeFromGates": {},
+      "notes": "Great place to relax before a flight."
+    },
+    {
+      "poiId": "BLR_RELAY_T1",
+      "name": "Relay Books & News",
+      "category": "Retail",
+      "cuisine": [],
+      "terminal": "T1",
+      "zone": "T1_DEP_PRE_SEC",
+      "floor": 3,
+      "mapX": 150,
+      "mapY": 90,
+      "isAirside": false,
+      "timings": {
+        "open": "05:00",
+        "close": "23:00",
+        "days": "Everyday"
+      },
+      "priceRange": "$$",
+      "rating": 4.0,
+      "tags": [
+        "books",
+        "magazines",
+        "snacks",
+        "water",
+        "travel accessories",
+        "reading",
+        "news"
+      ],
+      "menu": [],
+      "walkingTimeFromGates": {},
+      "notes": "Perfect for grabbing a quick read."
+    },
+    {
+      "poiId": "BLR_KFC_T2",
+      "name": "KFC",
+      "category": "Fast Food",
+      "cuisine": [
+        "American",
+        "Chicken"
+      ],
+      "terminal": "T2",
+      "zone": "T2_FOOD_COURT",
+      "floor": 3,
+      "mapX": 330,
+      "mapY": 190,
+      "isAirside": true,
+      "timings": {
+        "open": "00:00",
+        "close": "23:59",
+        "days": "Everyday"
+      },
+      "priceRange": "$",
+      "rating": 4.1,
+      "tags": [
+        "chicken",
+        "kfc",
+        "fried chicken",
+        "fast food",
+        "bucket",
+        "wings"
+      ],
+      "menu": [
+        {
+          "item": "Hot & Crispy Bucket",
+          "price": 550,
+          "category": "Mains",
+          "isVeg": false,
+          "popular": true,
+          "description": "8 pcs of spicy fried chicken."
+        },
+        {
+          "item": "Zinger Burger",
+          "price": 180,
+          "category": "Mains",
+          "isVeg": false,
+          "popular": true,
+          "description": "Signature crispy chicken burger."
+        }
+      ],
+      "walkingTimeFromGates": {},
+      "notes": "Always fresh and hot."
+    },
+    {
+      "poiId": "BLR_DUTYFREE_T1",
+      "name": "Bengaluru Duty Free",
+      "category": "Retail",
+      "cuisine": [],
+      "terminal": "T1",
+      "zone": "T1_DEP_POST_SEC",
+      "floor": 3,
+      "mapX": 400,
+      "mapY": 90,
+      "isAirside": true,
+      "timings": {
+        "open": "00:00",
+        "close": "23:59",
+        "days": "Everyday"
+      },
+      "priceRange": "$$$",
+      "rating": 4.6,
+      "tags": [
+        "duty free",
+        "alcohol",
+        "perfume",
+        "chocolates",
+        "tobacco",
+        "gifts",
+        "shopping",
+        "liquor"
+      ],
+      "menu": [],
+      "walkingTimeFromGates": {
+        "G1": "1 min"
+      },
+      "notes": "Large selection of international brands."
+    },
+    {
+      "poiId": "BLR_MAC_COSMETICS_T2",
+      "name": "M.A.C Cosmetics",
+      "category": "Retail",
+      "cuisine": [],
+      "terminal": "T2",
+      "zone": "T2_DEP_POST_SEC",
+      "floor": 4,
+      "mapX": 520,
+      "mapY": 100,
+      "isAirside": true,
+      "timings": {
+        "open": "06:00",
+        "close": "22:00",
+        "days": "Everyday"
+      },
+      "priceRange": "$$$",
+      "rating": 4.7,
+      "tags": [
+        "makeup",
+        "cosmetics",
+        "beauty",
+        "lipstick",
+        "mac",
+        "skincare",
+        "women"
+      ],
+      "menu": [],
+      "walkingTimeFromGates": {},
+      "notes": "Premium makeup products."
+    },
+    {
+      "poiId": "BLR_BIBA_T1",
+      "name": "Biba",
+      "category": "Retail",
+      "cuisine": [],
+      "terminal": "T1",
+      "zone": "T1_DEP_POST_SEC",
+      "floor": 3,
+      "mapX": 430,
+      "mapY": 110,
+      "isAirside": true,
+      "timings": {
+        "open": "07:00",
+        "close": "22:00",
+        "days": "Everyday"
+      },
+      "priceRange": "$$",
+      "rating": 4.4,
+      "tags": [
+        "clothing",
+        "ethnic",
+        "women",
+        "kurtas",
+        "dresses",
+        "apparel",
+        "fashion",
+        "biba"
+      ],
+      "menu": [],
+      "walkingTimeFromGates": {},
+      "notes": "Beautiful ethnic Indian wear."
+    },
+    {
+      "poiId": "BLR_SUBWAY_T2",
+      "name": "Subway",
+      "category": "Fast Food",
+      "cuisine": [
+        "Sandwiches",
+        "Healthy"
+      ],
+      "terminal": "T2",
+      "zone": "T2_FOOD_COURT",
+      "floor": 3,
+      "mapX": 310,
+      "mapY": 180,
+      "isAirside": true,
+      "timings": {
+        "open": "00:00",
+        "close": "23:59",
+        "days": "Everyday"
+      },
+      "priceRange": "$",
+      "rating": 4.3,
+      "tags": [
+        "subway",
+        "sandwiches",
+        "healthy",
+        "salad",
+        "subs",
+        "fresh",
+        "veg",
+        "non-veg"
+      ],
+      "menu": [
+        {
+          "item": "Paneer Tikka Sub (6 inch)",
+          "price": 200,
+          "category": "Mains",
+          "isVeg": true,
+          "popular": true,
+          "description": "Spicy paneer chunks in fresh bread."
+        },
+        {
+          "item": "Roasted Chicken Sub (6 inch)",
+          "price": 220,
+          "category": "Mains",
+          "isVeg": false,
+          "popular": true,
+          "description": "Classic roasted chicken sandwich."
+        }
+      ],
+      "walkingTimeFromGates": {},
+      "notes": "Good choice for a light, healthy meal."
+    },
+    {
+      "poiId": "BLR_DOSA_PLAZA_T1",
+      "name": "Dosa Plaza",
+      "category": "Restaurant",
+      "cuisine": [
+        "South Indian",
+        "Indian"
+      ],
+      "terminal": "T1",
+      "zone": "T1_DEP_POST_SEC",
+      "floor": 3,
+      "mapX": 440,
+      "mapY": 95,
+      "isAirside": true,
+      "timings": {
+        "open": "06:00",
+        "close": "22:00",
+        "days": "Everyday"
+      },
+      "priceRange": "$$",
+      "rating": 4.4,
+      "tags": [
+        "dosa",
+        "south indian",
+        "idli",
+        "vada",
+        "sambar",
+        "filter coffee",
+        "uttapam",
+        "masala dosa",
+        "breakfast",
+        "vegetarian",
+        "thali"
+      ],
+      "menu": [
+        {
+          "item": "Masala Dosa",
+          "price": 180,
+          "category": "Mains",
+          "isVeg": true,
+          "popular": true,
+          "description": "Crispy golden dosa stuffed with spiced potato filling, served with sambar and coconut chutney."
+        },
+        {
+          "item": "Mysore Masala Dosa",
+          "price": 200,
+          "category": "Mains",
+          "isVeg": true,
+          "popular": true,
+          "description": "Spicy red chutney spread inside crispy dosa with aloo filling."
+        },
+        {
+          "item": "Idli Sambar",
+          "price": 120,
+          "category": "Mains",
+          "isVeg": true,
+          "popular": true,
+          "description": "Soft steamed rice cakes with hot sambar and chutney."
+        },
+        {
+          "item": "Vada (2 pcs)",
+          "price": 100,
+          "category": "Mains",
+          "isVeg": true,
+          "popular": false,
+          "description": "Crispy lentil fritters served with sambar."
+        },
+        {
+          "item": "Filter Coffee",
+          "price": 80,
+          "category": "Drinks",
+          "isVeg": true,
+          "popular": true,
+          "description": "Authentic South Indian filter coffee."
+        },
+        {
+          "item": "Uttapam",
+          "price": 160,
+          "category": "Mains",
+          "isVeg": true,
+          "popular": false,
+          "description": "Thick rice pancake topped with onion, tomato, and green chillies."
+        },
+        {
+          "item": "Rava Dosa",
+          "price": 170,
+          "category": "Mains",
+          "isVeg": true,
+          "popular": false,
+          "description": "Crispy semolina crepe with cashew bits."
+        }
+      ],
+      "walkingTimeFromGates": {
+        "G1": "2 min",
+        "G2": "3 min",
+        "G3": "4 min"
+      },
+      "notes": "Pure vegetarian. Perfect for authentic South Indian breakfast."
+    },
+    {
+      "poiId": "BLR_MAINLAND_CHINA_T2",
+      "name": "Mainland China",
+      "category": "Restaurant",
+      "cuisine": [
+        "Chinese",
+        "Asian",
+        "Oriental"
+      ],
+      "terminal": "T2",
+      "zone": "T2_FOOD_COURT",
+      "floor": 3,
+      "mapX": 340,
+      "mapY": 185,
+      "isAirside": true,
+      "timings": {
+        "open": "11:00",
+        "close": "22:30",
+        "days": "Everyday"
+      },
+      "priceRange": "$$$",
+      "rating": 4.5,
+      "tags": [
+        "chinese",
+        "noodles",
+        "fried rice",
+        "dim sum",
+        "manchurian",
+        "soup",
+        "chilli chicken",
+        "chopsticks",
+        "asian",
+        "wok"
+      ],
+      "menu": [
+        {
+          "item": "Hakka Noodles",
+          "price": 280,
+          "category": "Mains",
+          "isVeg": true,
+          "popular": true,
+          "description": "Stir-fried noodles with vegetables in soy sauce."
+        },
+        {
+          "item": "Chilli Chicken",
+          "price": 350,
+          "category": "Mains",
+          "isVeg": false,
+          "popular": true,
+          "description": "Crispy chicken tossed in spicy chilli sauce."
+        },
+        {
+          "item": "Veg Manchurian",
+          "price": 250,
+          "category": "Starters",
+          "isVeg": true,
+          "popular": true,
+          "description": "Deep fried veggie balls in tangy manchurian gravy."
+        },
+        {
+          "item": "Dim Sum (6 pcs)",
+          "price": 320,
+          "category": "Starters",
+          "isVeg": false,
+          "popular": false,
+          "description": "Steamed dumplings with chicken filling."
+        },
+        {
+          "item": "Sweet Corn Soup",
+          "price": 180,
+          "category": "Soups",
+          "isVeg": true,
+          "popular": false,
+          "description": "Creamy sweet corn soup with vegetables."
+        }
+      ],
+      "walkingTimeFromGates": {},
+      "notes": "Award-winning Chinese restaurant chain."
+    },
+    {
+      "poiId": "BLR_CHAI_POINT_T1",
+      "name": "Chai Point",
+      "category": "Cafe",
+      "cuisine": [
+        "Indian",
+        "Beverages"
+      ],
+      "terminal": "T1",
+      "zone": "T1_DEP_PRE_SEC",
+      "floor": 3,
+      "mapX": 140,
+      "mapY": 85,
+      "isAirside": false,
+      "timings": {
+        "open": "05:00",
+        "close": "23:30",
+        "days": "Everyday"
+      },
+      "priceRange": "$",
+      "rating": 4.3,
+      "tags": [
+        "tea",
+        "chai",
+        "coffee",
+        "biscuits",
+        "snacks",
+        "quick",
+        "cheap",
+        "vada pav",
+        "samosa",
+        "Indian tea",
+        "cutting chai"
+      ],
+      "menu": [
+        {
+          "item": "Cutting Chai",
+          "price": 40,
+          "category": "Drinks",
+          "isVeg": true,
+          "popular": true,
+          "description": "Classic Indian cutting chai, freshly brewed."
+        },
+        {
+          "item": "Masala Chai",
+          "price": 60,
+          "category": "Drinks",
+          "isVeg": true,
+          "popular": true,
+          "description": "Spiced tea with ginger, cardamom, and cloves."
+        },
+        {
+          "item": "Vada Pav",
+          "price": 70,
+          "category": "Snacks",
+          "isVeg": true,
+          "popular": true,
+          "description": "Mumbai-style spicy potato fritter in a bun."
+        },
+        {
+          "item": "Samosa (2 pcs)",
+          "price": 80,
+          "category": "Snacks",
+          "isVeg": true,
+          "popular": false,
+          "description": "Crispy pastry filled with spiced potatoes and peas."
+        }
+      ],
+      "walkingTimeFromGates": {},
+      "notes": "Cheapest tea at the airport. Available landside."
+    },
+    {
+      "poiId": "BLR_ELECTRONICS_T1",
+      "name": "Croma Express",
+      "category": "Retail",
+      "cuisine": [],
+      "terminal": "T1",
+      "zone": "T1_DEP_POST_SEC",
+      "floor": 3,
+      "mapX": 420,
+      "mapY": 105,
+      "isAirside": true,
+      "timings": {
+        "open": "06:00",
+        "close": "22:00",
+        "days": "Everyday"
+      },
+      "priceRange": "$$",
+      "rating": 4.0,
+      "tags": [
+        "electronics",
+        "headphones",
+        "earphones",
+        "charger",
+        "cable",
+        "adapter",
+        "power bank",
+        "travel adapter",
+        "usb",
+        "phone accessories",
+        "tech"
+      ],
+      "menu": [],
+      "walkingTimeFromGates": {
+        "G1": "3 min"
+      },
+      "notes": "Grab travel chargers, adapters, and headphones."
+    },
+    {
+      "poiId": "BLR_FOREST_ESSENTIALS_T2",
+      "name": "Forest Essentials",
+      "category": "Retail",
+      "cuisine": [],
+      "terminal": "T2",
+      "zone": "T2_DEP_POST_SEC",
+      "floor": 4,
+      "mapX": 510,
+      "mapY": 95,
+      "isAirside": true,
+      "timings": {
+        "open": "07:00",
+        "close": "22:00",
+        "days": "Everyday"
+      },
+      "priceRange": "$$$",
+      "rating": 4.8,
+      "tags": [
+        "ayurveda",
+        "skincare",
+        "natural",
+        "organic",
+        "beauty",
+        "luxury",
+        "fragrance",
+        "gift",
+        "indian brand",
+        "handmade"
+      ],
+      "menu": [],
+      "walkingTimeFromGates": {},
+      "notes": "Luxury Ayurvedic skincare. Great for gifts."
+    },
+    {
+      "poiId": "BLR_BASKIN_ROBBINS_T1",
+      "name": "Baskin Robbins",
+      "category": "Desserts",
+      "cuisine": [
+        "Ice Cream",
+        "Desserts"
+      ],
+      "terminal": "T1",
+      "zone": "T1_DEP_POST_SEC",
+      "floor": 3,
+      "mapX": 455,
+      "mapY": 98,
+      "isAirside": true,
+      "timings": {
+        "open": "06:00",
+        "close": "23:00",
+        "days": "Everyday"
+      },
+      "priceRange": "$$",
+      "rating": 4.3,
+      "tags": [
+        "ice cream",
+        "dessert",
+        "sundae",
+        "milkshake",
+        "sweet",
+        "frozen",
+        "gelato",
+        "kids",
+        "treat"
+      ],
+      "menu": [
+        {
+          "item": "Single Scoop",
+          "price": 120,
+          "category": "Ice Cream",
+          "isVeg": true,
+          "popular": true,
+          "description": "Choose from 31 flavors."
+        },
+        {
+          "item": "Double Scoop",
+          "price": 200,
+          "category": "Ice Cream",
+          "isVeg": true,
+          "popular": true,
+          "description": "Two scoops of your favorite flavors."
+        },
+        {
+          "item": "Chocolate Sundae",
+          "price": 250,
+          "category": "Sundae",
+          "isVeg": true,
+          "popular": true,
+          "description": "Rich chocolate ice cream with fudge and whipped cream."
+        }
+      ],
+      "walkingTimeFromGates": {
+        "G1": "2 min",
+        "G2": "3 min"
+      },
+      "notes": "Great for a quick dessert. 31 flavors available."
     }
   ],
   "services": [
@@ -2323,6 +3051,169 @@
         "boarding",
         "D11",
         "departure"
+      ]
+    },
+    {
+      "serviceId": "SRV_WIFI_T1",
+      "label": "Free Airport Wi-Fi Kiosk",
+      "terminal": "T1",
+      "floor": 3,
+      "mapX": 130,
+      "mapY": 85,
+      "tags": [
+        "wifi",
+        "internet",
+        "connection",
+        "free wifi",
+        "network",
+        "kiosk"
+      ]
+    },
+    {
+      "serviceId": "SRV_SMOKING_T2",
+      "label": "Smoking Lounge T2",
+      "terminal": "T2",
+      "floor": 4,
+      "mapX": 550,
+      "mapY": 150,
+      "tags": [
+        "smoking",
+        "cigarette",
+        "lounge",
+        "smoke room"
+      ]
+    },
+    {
+      "serviceId": "SRV_PRAYER_T1",
+      "label": "Multi-faith Prayer Room",
+      "terminal": "T1",
+      "floor": 3,
+      "mapX": 410,
+      "mapY": 130,
+      "tags": [
+        "prayer",
+        "religion",
+        "mosque",
+        "temple",
+        "quiet room",
+        "worship"
+      ]
+    },
+    {
+      "serviceId": "SRV_CHARGING_T2",
+      "label": "Mobile Charging Station",
+      "terminal": "T2",
+      "floor": 4,
+      "mapX": 480,
+      "mapY": 110,
+      "tags": [
+        "charging",
+        "phone",
+        "battery",
+        "power",
+        "plug",
+        "socket",
+        "usb"
+      ]
+    },
+    {
+      "serviceId": "SRV_WHEELCHAIR_T1",
+      "label": "Wheelchair Assistance Desk",
+      "terminal": "T1",
+      "floor": 3,
+      "mapX": 125,
+      "mapY": 75,
+      "tags": [
+        "wheelchair",
+        "assistance",
+        "disabled",
+        "accessible",
+        "help",
+        "medical"
+      ]
+    },
+    {
+      "serviceId": "SRV_KIDS_AREA_T2",
+      "label": "Kids Play Area",
+      "terminal": "T2",
+      "floor": 3,
+      "mapX": 350,
+      "mapY": 200,
+      "tags": [
+        "kids",
+        "children",
+        "play",
+        "play area",
+        "family",
+        "toys",
+        "games"
+      ]
+    },
+    {
+      "serviceId": "SRV_CURRENCY_T1",
+      "label": "Thomas Cook Currency Exchange",
+      "terminal": "T1",
+      "floor": 3,
+      "mapX": 135,
+      "mapY": 82,
+      "tags": [
+        "currency",
+        "exchange",
+        "forex",
+        "money",
+        "dollar",
+        "euro",
+        "convert",
+        "travel money"
+      ]
+    },
+    {
+      "serviceId": "SRV_MEDICAL_T2",
+      "label": "Airport Medical Centre",
+      "terminal": "T2",
+      "floor": 1,
+      "mapX": 270,
+      "mapY": 330,
+      "tags": [
+        "medical",
+        "doctor",
+        "first aid",
+        "health",
+        "emergency",
+        "nurse",
+        "clinic",
+        "sick"
+      ]
+    },
+    {
+      "serviceId": "SRV_LOST_FOUND_T1",
+      "label": "Lost & Found Office",
+      "terminal": "T1",
+      "floor": 1,
+      "mapX": 230,
+      "mapY": 310,
+      "tags": [
+        "lost",
+        "found",
+        "missing",
+        "lost luggage",
+        "lost item",
+        "claim"
+      ]
+    },
+    {
+      "serviceId": "SRV_WRAPPING_T1",
+      "label": "Baggage Wrapping Service",
+      "terminal": "T1",
+      "floor": 3,
+      "mapX": 125,
+      "mapY": 78,
+      "tags": [
+        "wrapping",
+        "baggage",
+        "plastic wrap",
+        "luggage protection",
+        "bag wrap"
       ]
     }
   ]

@@ -1,5 +1,6 @@
 package com.example.skybuddy
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
+import com.example.skybuddy.location.LocationTrackerService
 import com.example.skybuddy.ui.nav.Routes
 import com.example.skybuddy.ui.nav.SkyBuddyNavGraph
 import com.example.skybuddy.ui.onboarding.ModelDownloader
@@ -50,5 +52,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopService(Intent(this, LocationTrackerService::class.java))
     }
 }

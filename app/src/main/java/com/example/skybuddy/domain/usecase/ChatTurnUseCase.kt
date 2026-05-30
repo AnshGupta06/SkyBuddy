@@ -15,7 +15,8 @@ data class ChatTurnResult(
     val response: String,
     val flight: FlightEntity? = null,
     val luggage: LuggageEntity? = null,
-    val receipts: List<ReceiptEntity>? = null
+    val receipts: List<ReceiptEntity>? = null,
+    val checklistModified: Boolean = false
 )
 
 class ChatTurnUseCase @Inject constructor(
@@ -105,7 +106,8 @@ class ChatTurnUseCase @Inject constructor(
             response = response,
             flight = flight,
             luggage = luggage,
-            receipts = receipts
+            receipts = receipts,
+            checklistModified = tools.didModifyChecklist
         )
     }
 }

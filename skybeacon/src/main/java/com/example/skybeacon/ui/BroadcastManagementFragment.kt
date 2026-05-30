@@ -53,7 +53,7 @@ class BroadcastManagementFragment : Fragment(R.layout.fragment_broadcast_managem
 
         val offerAdapter = OfferAdapter(
             onAdvertise = { offer ->
-                val payload = "SB:${shopName.replace(" ", "")}|${offer.title} - ${offer.discountPercent}% OFF".take(61)
+                val payload = "SB:${shopName.replace(" ", "")}|${offer.title} - ${offer.discountPercent}% OFF".take(53)
                 (requireActivity() as MainActivity).triggerBroadcast(payload)
                 viewModel.insertLog(BroadcastLog(shopName = shopName, broadcastType = "Offer", content = "${offer.title} - ${offer.discountPercent}% OFF"))
             },
@@ -62,7 +62,7 @@ class BroadcastManagementFragment : Fragment(R.layout.fragment_broadcast_managem
         
         val messageAdapter = MessageAdapter(
             onBroadcast = { msg ->
-                val payload = "SB:${shopName.replace(" ", "")}|${msg.messageText}".take(61)
+                val payload = "SB:${shopName.replace(" ", "")}|${msg.messageText}".take(53)
                 (requireActivity() as MainActivity).triggerBroadcast(payload)
                 viewModel.insertLog(BroadcastLog(shopName = shopName, broadcastType = "Message", content = msg.messageText))
             },

@@ -11,7 +11,7 @@ class EvaluateAmbientBeaconUseCase @Inject constructor(
     private val timelineEventDao: TimelineEventDao,
     private val notificationHelper: NotificationHelper
 ) {
-    suspend operator fun invoke(beaconPayload: String, locationName: String) {
+    suspend operator fun invoke(beaconPayload: String, locationName: String): String {
         notificationHelper.notifyFlightUpdate(
             flightNumber = "BEACON",  // Reusing the notification method for debugging
             title = "$locationName RECEIVED",
@@ -34,5 +34,7 @@ class EvaluateAmbientBeaconUseCase @Inject constructor(
             title = "$locationName",
             message = response.trim()
         )
+
+        return response.trim()
     }
 }

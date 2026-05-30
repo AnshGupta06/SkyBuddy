@@ -12,8 +12,14 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.skybuddy.shared.beacon.BeaconWatchdog
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -28,6 +34,8 @@ class LocationTrackerService : Service(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private var stepSensor: Sensor? = null
     private var rotationSensor: Sensor? = null
+    private var watchdog: BeaconWatchdog? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     override fun onCreate() {
         super.onCreate()
@@ -38,6 +46,24 @@ class LocationTrackerService : Service(), SensorEventListener {
         startForegroundService()
         registerSensors()
         dynamicBeaconReceiver.startScanning()
+
+        // ── Watchdog: keeps BLE scanning alive ──────────────────────────────
+        watchdog = BeaconWatchdog(
+            context = applicationContext,
+            tag = "SkyBuddyBeaconWatchdog",
+            isAlive = { dynamicBeaconReceiver.isScanning },
+            restart = { dynamicBeaconReceiver.startScanning() }
+        ).also { wd ->
+            wd.start()
+            // Forward watchdog recovery events into the DynamicBeaconReceiver's
+            // existing beaconEvents flow so the ViewModel and UI pick them up
+            // automatically via the same Snackbar + Dynamic Island pipeline.
+            serviceScope.launch {
+                wd.recoveryEvents.collect { msg ->
+                    dynamicBeaconReceiver.emitEvent(msg)
+                }
+            }
+        }
     }
 
     private fun startForegroundService() {
@@ -75,8 +101,17 @@ class LocationTrackerService : Service(), SensorEventListener {
         return START_STICKY
     }
 
+    /** Stop the service when the user swipes the app from recents. */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.d("LocationTrackerService", "Task removed — stopping service")
+        stopSelf()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        watchdog?.stop()
+        watchdog = null
         sensorManager.unregisterListener(this)
         dynamicBeaconReceiver.stopScanning()
     }
